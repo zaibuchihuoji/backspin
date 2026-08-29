@@ -41,6 +41,18 @@ pip install "backspin[ui]"     # SDK + CLI + local viewer
 
 Core has zero dependencies; `[ui]` adds FastAPI + uvicorn for the local viewer.
 
+**TypeScript SDK** (same run format — recordings are interchangeable across languages):
+
+```bash
+npm install github:zaibuchihuoji/backspin#sdk
+```
+
+```js
+import { Recorder, captureOpenAI } from "@backspin/sdk";
+```
+
+(An npm-registry release of `@backspin/sdk` is planned; the GitHub install is prebuilt and current.)
+
 ## Record
 
 ```python
