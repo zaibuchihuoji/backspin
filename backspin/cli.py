@@ -261,6 +261,36 @@ def cmd_proxy(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export(args: argparse.Namespace) -> int:
+    from .export import export
+
+    text = export(load_run(args.file), fmt=args.format)
+    if args.out:
+        from pathlib import Path
+
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"wrote {args.out} ({len(text.splitlines())} lines)")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def cmd_share(args: argparse.Namespace) -> int:
+    from .share import write_share_html
+
+    out = write_share_html(args.file, args.out)
+    print(f"shared viewer written to: {out}")
+    print("send it to anyone — it opens in a browser, no install needed")
+    return 0
+
+
+def cmd_tui(args: argparse.Namespace) -> int:
+    from .tui import run_tui
+
+    run_tui(args.dir)
+    return 0
+
+
 # --- parser -----------------------------------------------------------------
 
 
@@ -303,6 +333,22 @@ def build_parser() -> argparse.ArgumentParser:
     px.add_argument("--host", default="127.0.0.1")
     px.add_argument("--port", type=int, default=8840)
     px.set_defaults(fn=cmd_proxy)
+
+    ex = sub.add_parser("export", help="export a run as a dataset (JSONL)")
+    ex.add_argument("file", help="run file to export")
+    ex.add_argument("--format", choices=["pairs", "sft"], default="pairs",
+                    help="pairs: one line per LLM call; sft: one chat sample per run")
+    ex.add_argument("-o", "--out", default=None, help="output file (default: stdout)")
+    ex.set_defaults(fn=cmd_export)
+
+    sh = sub.add_parser("share", help="bundle a run + viewer into one HTML file")
+    sh.add_argument("file", help="run file to share")
+    sh.add_argument("-o", "--out", default=None, help="output path (default: <run>.share.html)")
+    sh.set_defaults(fn=cmd_share)
+
+    tui = sub.add_parser("tui", help="keyboard-driven terminal viewer")
+    tui.add_argument("--dir", default="runs", help="runs directory")
+    tui.set_defaults(fn=cmd_tui)
 
     ui = sub.add_parser("ui", help="launch the local timeline viewer")
     ui.add_argument("--dir", default="runs", help="runs directory (default: runs)")

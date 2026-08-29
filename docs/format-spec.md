@@ -47,6 +47,8 @@ database — text you can `grep`.
 | `span_id` | inside a span | id of the innermost open span |
 | `depth` | inside a span | nesting depth (0 = top level) |
 | `fingerprint` | `llm` | 16-hex-char SHA-256 prefix over `{"model", "messages"}` (canonical JSON, sorted keys). Sampling parameters are deliberately excluded |
+| `provider` | `llm` (non-OpenAI protocol) | e.g. `"anthropic"`; absent for OpenAI-protocol calls |
+| `span_id` / `depth` | inside a span | see `span` below |
 
 ## `llm`
 

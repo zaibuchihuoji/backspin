@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.mock_anthropic_server import start_anthropic_server
 from tests.mock_openai_server import start_server, start_uvicorn
 
 
@@ -16,3 +17,9 @@ def mock_openai_origin() -> str:
 @pytest.fixture(scope="session")
 def openai_base_url(mock_openai_origin) -> str:
     return mock_openai_origin + "/v1"
+
+
+@pytest.fixture(scope="session")
+def anthropic_origin() -> str:
+    pytest.importorskip("anthropic")
+    return start_anthropic_server()

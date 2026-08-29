@@ -101,15 +101,31 @@ class Cassette:
             )
         entries = copy.deepcopy(self.entries)
         resp = entries[index]["response"]
-        choices = resp.get("choices") or [{}]
-        message = choices[0].setdefault("message", {"role": "assistant"})
-        if content is not None:
-            message["content"] = content
-        if tool_arguments is not None:
-            calls = message.get("tool_calls")
-            if not calls:
-                raise ValueError("that recording has no tool calls to mutate")
-            calls[0].setdefault("function", {})["arguments"] = json.dumps(tool_arguments)
+        if "choices" in resp:
+            message = (resp["choices"] or [{}])[0].setdefault(
+                "message", {"role": "assistant"}
+            )
+            if content is not None:
+                message["content"] = content
+            if tool_arguments is not None:
+                calls = message.get("tool_calls")
+                if not calls:
+                    raise ValueError("that recording has no tool calls to mutate")
+                calls[0].setdefault("function", {})["arguments"] = json.dumps(tool_arguments)
+        elif "content" in resp:  # anthropic message: mutate first text block
+            if tool_arguments is not None:
+                raise ValueError(
+                    "tool_arguments mutation is not supported for anthropic tool_use blocks yet"
+                )
+            for block in resp["content"] or []:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    block["text"] = content
+                    break
+            else:
+                if content is not None:
+                    resp.setdefault("content", []).append({"type": "text", "text": content})
+        else:
+            raise ValueError("unrecognized response shape; cannot mutate")
         return Cassette(entries)
 
 

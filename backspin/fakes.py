@@ -90,3 +90,62 @@ def stream_chunks(data: Dict[str, Any], pieces: int = 3) -> Iterator[FakeChunk]:
         for i in range(0, len(content), step):
             yield FakeChunk(model=model, delta={"content": content[i : i + step]})
     yield FakeChunk(model=model, finish_reason="stop", usage=data.get("usage"))
+
+
+# ---- Anthropic-shaped fakes -------------------------------------------------
+
+
+class FakeAnthropicMessage:
+    """Stands in for anthropic's Message object."""
+
+    def __init__(self, data: Dict[str, Any]):
+        self._data = data
+        self.id = data.get("id", "msg_fake")
+        self.type = data.get("type", "message")
+        self.role = data.get("role", "assistant")
+        self.model = data.get("model", "fake-claude")
+        self.content = _ns(data.get("content", []))
+        self.stop_reason = data.get("stop_reason")
+        usage = data.get("usage")
+        self.usage = _ns(usage) if usage else None
+
+    def model_dump(self, **_kw: Any) -> Dict[str, Any]:
+        return self._data
+
+
+class FakeAnthropicEvent:
+    """Stands in for one anthropic stream event."""
+
+    def __init__(self, data: Dict[str, Any]):
+        self._data = data
+
+    def model_dump(self, **_kw: Any) -> Dict[str, Any]:
+        return self._data
+
+
+def anthropic_stream_events(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Synthesize an anthropic SSE event sequence for a message payload."""
+    model = data.get("model", "fake-claude")
+    usage = data.get("usage") or {}
+    events: List[Dict[str, Any]] = [
+        {"type": "message_start", "message": {
+            "id": data.get("id", "msg_fake"), "type": "message",
+            "role": "assistant", "model": model,
+            "usage": {"input_tokens": usage.get("input_tokens", 8)},
+        }}
+    ]
+    for index, block in enumerate(data.get("content") or []):
+        if block.get("type") == "text":
+            events.append({"type": "content_block_start", "index": index,
+                           "content_block": {"type": "text", "text": ""}})
+            events.append({"type": "content_block_delta", "index": index,
+                           "delta": {"type": "text_delta", "text": block.get("text", "")}})
+        else:
+            events.append({"type": "content_block_start", "index": index,
+                           "content_block": dict(block)})
+        events.append({"type": "content_block_stop", "index": index})
+    events.append({"type": "message_delta",
+                   "delta": {"stop_reason": data.get("stop_reason", "end_turn")},
+                   "usage": {"output_tokens": usage.get("output_tokens", 4)}})
+    events.append({"type": "message_stop"})
+    return events

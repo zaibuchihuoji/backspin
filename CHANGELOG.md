@@ -2,6 +2,29 @@
 
 All notable changes to backspin are documented here.
 
+## 0.4.0 — 2026-08-29
+
+Multi-provider release: Anthropic natively, TypeScript SDK, export/share/TUI.
+
+- **Anthropic native** — `rec.capture_anthropic(client)`: sync/async/
+  streaming capture of the Messages API (text + tool_use blocks), events
+  recorded with `provider="anthropic"` and usage normalized to
+  `prompt_tokens`/`completion_tokens` so costs/diffs work cross-provider.
+  `backspin proxy` gains a `/v1/messages` adapter (record + replay,
+  streaming included) — verified end-to-end against the real anthropic SDK.
+- **TypeScript SDK** (`sdks/typescript`, `@backspin/sdk`) — Recorder with
+  AsyncLocalStorage spans, `captureOpenAI` (sync/async/streaming),
+  `Cassette`/`stubClient` replay, `diffRuns`. Same `.backspin.jsonl` run
+  format — Python recordings replay in TypeScript and vice versa. 6 node:test
+  suites.
+- **Dataset export** — `backspin export <run> --format pairs|sft` turns
+  recordings into eval/fine-tune JSONL.
+- **Single-file sharing** — `backspin share <run>` bundles the run + the
+  whole viewer into one HTML file; opens in any browser, zero install.
+- **TUI** — `backspin tui`: keyboard-driven terminal viewer (runs → timeline
+  → step JSON), injectable IO, fully unit-tested.
+- Python suite: 104 tests; TypeScript suite: 6 tests.
+
 ## 0.3.0 — 2026-08-29
 
 The "real debugger" release: what-if branching, zero-code proxy

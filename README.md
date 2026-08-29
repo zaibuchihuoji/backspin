@@ -124,6 +124,35 @@ Every call is forwarded and captured, streaming included. Flip the same proxy in
 backspin proxy --replay runs/live.backspin.jsonl --port 8840
 ```
 
+## Multi-provider: OpenAI, Anthropic, and everything OpenAI-compatible
+
+Claude natively? Same story, two lines:
+
+```python
+rec.capture_anthropic(Anthropic())   # sync/async/streaming, tool_use included
+```
+
+Anthropic events record with `provider: "anthropic"` and usage normalized to
+the same token fields, so costs and diffs work across providers. And because
+the proxy speaks `/v1/messages` too, Claude-native agents get the same
+record-or-replay treatment with zero code changes.
+
+Anything that speaks the OpenAI protocol (DeepSeek, Qwen, Kimi, GLM,
+vLLM/Ollama, OpenRouter, …) is covered by `capture_openai` / the proxy out
+of the box.
+
+## Export, share, TUI
+
+```bash
+backspin export runs/live.jsonl --format sft -o train.jsonl   # eval/SFT datasets
+backspin share runs/live.jsonl        # one self-contained HTML: run + viewer
+backspin tui                          # keyboard-driven viewer for the terminal
+```
+
+`share` bundles the entire viewer and the run into a single `.html` — send it
+to a teammate, they open it in a browser and step through the run. Nothing
+is uploaded anywhere.
+
 ## Costs
 
 A built-in price table (gpt-4o, claude, gemini, deepseek, …) turns token counts into money: `run.totals()["cost_usd"]`, a cost card in the viewer, `~$0.0142` in `backspin show`. Extending the table is a one-dict PR.
@@ -199,15 +228,14 @@ They compose well: keep the dashboard if you like it, attach a backspin run when
 
 ## Status & roadmap
 
-backspin is a young project (v0.3) — the core loop (record → replay → what-if → diff → view) is complete, tested against the real OpenAI SDK, and covered by edge-case and performance suites. Next:
+backspin is a young project (v0.4) — record → replay → what-if → diff → view works end to end across OpenAI and Anthropic protocols, from Python and TypeScript, verified against the real SDKs. Next:
 
-- [x] ~~Async + streaming capture, spans, redaction, costs, pytest plugin~~ (shipped in 0.2/0.3)
-- [x] ~~Framework-agnostic sidecar proxy (record + replay modes)~~ (shipped in 0.3)
-- [ ] TypeScript SDK speaking the same run format
-- [ ] Agent-level what-if (re-run the whole agent against a mutated cassette, not just the request sequence)
-- [ ] TUI (`backspin tui`) for terminal people
-- [ ] Deterministic clock/random stubs for full boundary capture
+- [x] ~~Async + streaming capture, spans, redaction, costs, pytest plugin~~ (0.2/0.3)
+- [x] ~~Sidecar proxy: record + replay, OpenAI protocol~~ (0.3)
+- [x] ~~Anthropic native: SDK capture + proxy `/v1/messages`; TypeScript SDK; export/share/TUI~~ (0.4)
+- [ ] Agent-level what-if (re-run the whole agent against a mutated cassette)
 - [ ] Docs site with runnable examples
+- [ ] Deterministic clock/random stubs for full boundary capture
 
 ## Development
 

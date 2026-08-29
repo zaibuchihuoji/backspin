@@ -124,3 +124,36 @@ def test_proxy_requires_exactly_one_mode(tmp_path):
         create_proxy_app(runs_dir=str(tmp_path))
     with pytest.raises(ValueError):
         create_proxy_app(upstream="http://x", cassette=Cassette([]), runs_dir=str(tmp_path))
+
+
+def test_proxy_anthropic_record_and_replay(tmp_path, anthropic_origin):
+    """Anthropic /v1/messages protocol: record via proxy, replay via cassette."""
+    anthropic = pytest.importorskip("anthropic")
+
+    rec_base, rec_app = make_proxy(tmp_path, upstream=anthropic_origin)
+    rec_origin = rec_base[: -len("/v1")]  # anthropic SDK appends /v1 itself
+    live = anthropic.Anthropic(base_url=rec_origin, api_key="sk-test", max_retries=0)
+    msg = live.messages.create(
+        model="claude-sonnet-4", max_tokens=100,
+        messages=[{"role": "user", "content": "anthropic proxy"}],
+    )
+    assert msg.content[0].text == "echo: anthropic proxy"
+
+    run = load_run(rec_app.state.recorder.path)
+    ev = run.llm_calls()[0]
+    assert ev["provider"] == "anthropic"
+    assert ev["response"]["content"][0]["text"] == "echo: anthropic proxy"
+    assert ev["usage"]["prompt_tokens"] == 21
+
+    # replay: same protocol served from the cassette, no upstream
+    cassette = Cassette.from_run(run)
+    replay_base, _ = make_proxy(tmp_path / "replay", cassette=cassette)
+    replay_client = anthropic.Anthropic(
+        base_url=replay_base[: -len("/v1")], api_key="sk-test", max_retries=0
+    )
+    replayed = replay_client.messages.create(
+        model="claude-sonnet-4", max_tokens=100,
+        messages=[{"role": "user", "content": "anthropic proxy"}],
+    )
+    assert replayed.content[0].text == "echo: anthropic proxy"
+    assert replayed.usage.input_tokens == 21

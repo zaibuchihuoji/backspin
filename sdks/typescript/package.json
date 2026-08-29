@@ -1,0 +1,18 @@
+{
+  "name": "@backspin/sdk",
+  "version": "0.4.0",
+  "description": "The flight recorder for AI agents — record, replay, diff agent runs (TypeScript SDK, same run format as the Python package).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test dist/test/"
+  },
+  "keywords": ["llm", "agents", "record-replay", "debugging", "observability"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

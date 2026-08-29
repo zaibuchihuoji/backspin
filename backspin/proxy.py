@@ -25,9 +25,20 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .fakes import stream_chunks
+from .integrations.anthropic import _Acc as _AnthropicAcc
 from .replay import Cassette
 from .recorder import Recorder
 from .runfile import fingerprint_request
+
+
+def _norm_anthropic_usage(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    usage = (payload or {}).get("usage") or {}
+    if not usage:
+        return None
+    return {
+        "prompt_tokens": usage.get("input_tokens") or 0,
+        "completion_tokens": usage.get("output_tokens") or 0,
+    }
 
 
 def _sse(obj: Any) -> str:
@@ -219,6 +230,104 @@ def create_proxy_app(
                 )
 
         return StreamingResponse(passthrough_gen(), media_type="text/event-stream")
+
+    @app.post("/v1/messages")
+    async def anthropic_messages(request: Request):
+        """Anthropic Messages protocol: same record/replay behavior."""
+        body = await request.json()
+        stream = body.get("stream", False)
+        t0 = time.perf_counter()
+
+        # ---- replay -------------------------------------------------------
+        if client is None:
+            fp = fingerprint_request(body.get("model"), body.get("messages"))
+            entry, _exact = cassette.match(fp)
+            if entry is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="backspin replay proxy: cassette exhausted",
+                )
+            data = dict(entry["response"])
+            if stream:
+                from .fakes import anthropic_stream_events
+
+                async def anthropic_replay_gen():
+                    for event in anthropic_stream_events(data):
+                        yield "event: " + event.get("type", "message") + "\n" + _sse(event)
+                    yield "event: message_stop\n" + _sse({"type": "message_stop"})
+
+                return StreamingResponse(anthropic_replay_gen(), media_type="text/event-stream")
+            return JSONResponse(data)
+
+        # ---- record -------------------------------------------------------
+        fwd_headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() in ("x-api-key", "anthropic-version", "content-type", "accept")
+        }
+        ms = lambda: (time.perf_counter() - t0) * 1000
+
+        if not stream:
+            resp = await client.post("/v1/messages", json=body, headers=fwd_headers)
+            try:
+                payload = resp.json()
+            except Exception:
+                payload = None
+            if resp.status_code >= 400:
+                recorder.record_llm(
+                    request=body, model=body.get("model"), duration_ms=ms(),
+                    error=RuntimeError(f"upstream HTTP {resp.status_code}: {resp.text[:300]}"),
+                    provider="anthropic",
+                )
+            else:
+                recorder.record_llm(
+                    request=body, response=payload,
+                    usage=_norm_anthropic_usage(payload),
+                    model=(payload or {}).get("model") or body.get("model"),
+                    duration_ms=ms(), provider="anthropic",
+                )
+            return JSONResponse(payload if payload is not None else {}, status_code=resp.status_code)
+
+        upstream_resp = await client.send(
+            client.build_request("POST", "/v1/messages", json=body, headers=fwd_headers),
+            stream=True,
+        )
+        if upstream_resp.status_code >= 400:
+            raw = (await upstream_resp.aread()).decode("utf-8", "replace")
+            await upstream_resp.aclose()
+            recorder.record_llm(
+                request=body, model=body.get("model"), duration_ms=ms(),
+                error=RuntimeError(f"upstream HTTP {upstream_resp.status_code}: {raw[:300]}"),
+                provider="anthropic",
+            )
+            return JSONResponse({"error": {"message": raw[:500]}}, status_code=upstream_resp.status_code)
+
+        acc = _AnthropicAcc(body.get("model"))
+
+        async def anthropic_passthrough_gen():
+            try:
+                async for line in upstream_resp.aiter_lines():
+                    yield line + "\n"
+                    stripped = line.strip()
+                    if stripped.startswith("data:"):
+                        data = stripped[5:].strip()
+                        if data:
+                            try:
+                                acc.absorb(json.loads(data))
+                            except json.JSONDecodeError:
+                                pass
+            finally:
+                await upstream_resp.aclose()
+                usage = None
+                if acc.input_tokens is not None or acc.output_tokens is not None:
+                    usage = {"prompt_tokens": acc.input_tokens or 0,
+                             "completion_tokens": acc.output_tokens or 0}
+                recorder.record_llm(
+                    request=body, response=acc.payload(), usage=usage,
+                    model=acc.model, duration_ms=ms(),
+                    meta={"provider": "anthropic"},
+                )
+
+        return StreamingResponse(anthropic_passthrough_gen(), media_type="text/event-stream")
 
     return app
 

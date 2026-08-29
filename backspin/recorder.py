@@ -37,7 +37,7 @@ from .runfile import (
 # metadata the viewer, differ and replay matching rely on.
 _STRUCTURAL_FIELDS = frozenset(
     {"model", "name", "duration_ms", "fingerprint", "error_type", "level",
-     "span_id", "parent", "depth", "phase"}
+     "span_id", "parent", "depth", "phase", "provider"}
 )
 
 # Current span path, per execution context (async tasks get isolated stacks).
@@ -204,8 +204,10 @@ class Recorder:
         model: Optional[str] = None,
         usage: Optional[Dict[str, Any]] = None,
         meta: Optional[Dict[str, Any]] = None,
+        provider: Optional[str] = None,
     ) -> None:
-        """Record one LLM call. Prefer ``capture_openai`` over calling directly."""
+        """Record one LLM call. Prefer ``capture_openai``/``capture_anthropic``
+        over calling directly. ``provider`` labels non-OpenAI protocols."""
         if model is None and request:
             model = request.get("model")
         fp = None
@@ -221,6 +223,7 @@ class Recorder:
             error=str(error) if error else None,
             fingerprint=fp,
             meta=jsonable(meta),
+            provider=provider,
         )
 
     def record_tool(
@@ -312,3 +315,15 @@ class Recorder:
         from .integrations.openai import capture_openai
 
         return capture_openai(self, client)
+
+    def capture_anthropic(self, client: Any) -> Any:
+        """Patch ``client.messages.create`` so every call is recorded.
+
+        Works on the real ``anthropic.Anthropic`` / ``anthropic.AsyncAnthropic``
+        clients and anything duck-type-shaped the same way. Recorded events
+        carry ``provider="anthropic"`` with native payloads; usage is
+        normalized so costs and diffs work across providers.
+        """
+        from .integrations.anthropic import capture_anthropic
+
+        return capture_anthropic(self, client)

@@ -122,6 +122,28 @@ backspin proxy --upstream https://api.openai.com --port 8840
 backspin proxy --replay runs/live.backspin.jsonl --port 8840
 ```
 
+## 多模型:OpenAI、Anthropic、以及一切 OpenAI 兼容接口
+
+Claude 原生接口?同样两行搞定:
+
+```python
+rec.capture_anthropic(Anthropic())   # 同步/异步/流式,含 tool_use
+```
+
+Anthropic 的事件带 `provider: "anthropic"` 标记,usage 归一化到同一套 token 字段——成本和 diff 天然跨厂商可用。代理同时支持 `/v1/messages` 协议,Claude 原生 agent 同样零代码录制/回放。
+
+一切说 OpenAI 协议的模型(DeepSeek、通义千问、Kimi、智谱 GLM、vLLM/Ollama、OpenRouter……)开箱即被 `capture_openai` / 代理覆盖。
+
+## 导出、分享、终端界面
+
+```bash
+backspin export runs/live.jsonl --format sft -o train.jsonl   # 导出评测/SFT 数据集
+backspin share runs/live.jsonl        # 打包成单个 HTML:run + 查看器
+backspin tui                          # 键盘驱动的终端查看器
+```
+
+`share` 把查看器和运行记录打进一个 `.html` 文件——发给同事,浏览器打开就能逐步查看,不需要装任何东西,数据不上传任何地方。
+
 ## 成本
 
 内置价格表(gpt-4o、claude、gemini、deepseek……)把 token 变成钱:`run.totals()["cost_usd"]`、查看器的成本卡片、`backspin show` 里的 `~$0.0142`。补充价格表就是一个字典的 PR。
@@ -197,13 +219,12 @@ rec = Recorder(
 
 ## 状态与路线图
 
-backspin 还很年轻(v0.3)——核心闭环(录制 → 回放 → what-if → 对比 → 查看)已完成,通过了真实 OpenAI SDK 的集成测试,并有边界场景与性能测试兜底。接下来:
+backspin 还很年轻(v0.4)——录制 → 回放 → what-if → 对比 → 查看全链路可用,横跨 OpenAI 与 Anthropic 协议、Python 与 TypeScript 双 SDK,全部通过真实 SDK 集成测试。接下来:
 
 - [x] ~~异步+流式采集、span、脱敏、成本、pytest 插件~~(0.2/0.3 已发布)
 - [x] ~~框架无关的旁路代理(录制 + 回放双模式)~~(0.3 已发布)
-- [ ] TypeScript SDK(同一 run 格式)
+- [x] ~~Anthropic 原生:SDK 捕获 + 代理 /v1/messages;TypeScript SDK;导出/分享/TUI~~(0.4 已发布)
 - [ ] agent 级 what-if(对整个 agent 重放变异后的 cassette,而非仅请求序列)
-- [ ] 终端 TUI(`backspin tui`)
 - [ ] 确定性时钟/随机数桩,实现完整边界捕获
 - [ ] 带可运行示例的文档站
 
