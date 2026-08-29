@@ -1,4 +1,6 @@
 """Proxy integration tests: real openai SDK -> proxy -> mock upstream."""
+import time
+
 import pytest
 
 pytest.importorskip("openai")
@@ -8,6 +10,24 @@ from openai import APIStatusError, OpenAI
 from backspin import Cassette, load_run
 from backspin.proxy import create_proxy_app
 from tests.mock_openai_server import start_uvicorn
+
+
+def wait_for_llm_events(run_path, count=1, timeout=10.0):
+    """The proxy records streamed calls from the server-side generator's
+    finally block, which can finish *after* the client has consumed the
+    stream; poll the run file instead of racing it."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            calls = load_run(run_path).llm_calls()
+        except (ValueError, FileNotFoundError):
+            calls = []
+        if len(calls) >= count:
+            return calls
+        time.sleep(0.05)
+    raise AssertionError(
+        f"proxy recording never wrote {count} llm event(s): {run_path}"
+    )
 
 
 def make_proxy(tmp_path, upstream=None, cassette=None):
@@ -31,8 +51,7 @@ def test_proxy_record_sync(tmp_path, mock_openai_origin):
     )
     assert resp.choices[0].message.content == "echo: hello proxy"
 
-    run = load_run(app.state.recorder.path)
-    ev = run.llm_calls()[0]
+    ev = wait_for_llm_events(app.state.recorder.path)[0]
     assert ev["request"]["messages"][0]["content"] == "hello proxy"
     assert ev["response"]["choices"][0]["message"]["content"] == "echo: hello proxy"
     assert ev["usage"]["prompt_tokens"] == 12
@@ -56,7 +75,7 @@ def test_proxy_record_streaming(tmp_path, mock_openai_origin):
     text = "".join(c.choices[0].delta.content or "" for c in chunks if c.choices)
     assert text == "echo: hello stream"
 
-    ev = load_run(app.state.recorder.path).llm_calls()[0]
+    ev = wait_for_llm_events(app.state.recorder.path)[0]
     assert ev["response"]["reconstructed_from_stream"] is True
     assert ev["response"]["choices"][0]["message"]["content"] == "echo: hello stream"
     assert ev["usage"]["prompt_tokens"] == 12
@@ -71,7 +90,7 @@ def test_proxy_record_error(tmp_path, mock_openai_origin):
             model="mock-gpt", messages=[{"role": "user", "content": "boom now"}]
         )
 
-    ev = load_run(app.state.recorder.path).llm_calls()[0]
+    ev = wait_for_llm_events(app.state.recorder.path)[0]
     assert "exploded" in ev["error"]
     assert ev["request"]["messages"][0]["content"] == "boom now"
 
@@ -84,6 +103,7 @@ def test_proxy_replay_no_upstream(tmp_path, mock_openai_origin):
     )
 
     # 2. replay it from the cassette — no upstream at all
+    wait_for_llm_events(rec_app.state.recorder.path)
     cassette = Cassette.from_run(load_run(rec_app.state.recorder.path))
     replay_base, _ = make_proxy(tmp_path / "replay", cassette=cassette)
     replayed = make_client(replay_base).chat.completions.create(
@@ -103,6 +123,7 @@ def test_proxy_replay_streaming(tmp_path, mock_openai_origin):
     make_client(rec_base).chat.completions.create(
         model="mock-gpt", messages=[{"role": "user", "content": "stream replay"}]
     )
+    wait_for_llm_events(rec_app.state.recorder.path)
     cassette = Cassette.from_run(load_run(rec_app.state.recorder.path))
     replay_base, _ = make_proxy(tmp_path / "replay", cassette=cassette)
 
@@ -159,6 +180,7 @@ def test_proxy_anthropic_record_and_replay(tmp_path, anthropic_origin):
     )
     assert msg.content[0].text == "echo: anthropic proxy"
 
+    wait_for_llm_events(rec_app.state.recorder.path)
     run = load_run(rec_app.state.recorder.path)
     ev = run.llm_calls()[0]
     assert ev["provider"] == "anthropic"

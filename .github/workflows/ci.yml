@@ -73,5 +73,6 @@ jobs:
       # the published tarball must not ship tests and must typecheck clean
       - working-directory: sdks/typescript
         run: |
+          rm -rf dist
           npm run build
           test ! -d dist/test

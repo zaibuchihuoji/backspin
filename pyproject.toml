@@ -39,7 +39,8 @@ dependencies = []
 [project.optional-dependencies]
 ui = ["fastapi>=0.100", "uvicorn>=0.23"]
 proxy = ["fastapi>=0.100", "uvicorn>=0.23", "httpx>=0.24"]
-anthropic = ["anthropic>=1.0"]
+# recent anthropic SDKs dropped 3.9; the integration tests importorskip it
+anthropic = ["anthropic>=1.0; python_version>='3.10'"]
 dev = [
   "pytest>=7",
   "pytest-cov>=4",
@@ -47,7 +48,7 @@ dev = [
   "fastapi>=0.100",
   "uvicorn>=0.23",
   "openai>=1.30",
-  "anthropic>=1.0",
+  "anthropic>=1.0; python_version>='3.10'",
   "ruff>=0.6",
   "mypy>=1.10",
 ]
