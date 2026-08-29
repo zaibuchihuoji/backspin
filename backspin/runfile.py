@@ -24,6 +24,7 @@ LLM = "llm"
 TOOL = "tool"
 LOG = "log"
 ERROR = "error"
+SPAN = "span"
 
 
 def new_run_id() -> str:
@@ -123,7 +124,14 @@ class Run:
 
     def totals(self) -> Dict[str, Any]:
         tokens = _token_sums(self.events)
-        duration = sum(e.get("duration_ms") or 0.0 for e in self.events)
+        duration = sum(
+            e.get("duration_ms") or 0.0
+            for e in self.events
+            if e.get("kind") != "span"  # nested spans would double-count
+        )
+        from .cost import cost_report  # lazy: keeps this module dependency-light
+
+        cost = cost_report(self)
         return {
             "steps": len(self.events),
             "llm_calls": len(self.llm_calls()),
@@ -131,6 +139,8 @@ class Run:
             **tokens,
             "total_tokens": tokens["prompt_tokens"] + tokens["completion_tokens"],
             "duration_ms": round(duration, 1),
+            "cost_usd": cost["total_usd"],
+            "cost_complete": cost["complete"],
         }
 
     def summary(self) -> Dict[str, Any]:

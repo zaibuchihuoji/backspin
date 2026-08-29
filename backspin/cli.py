@@ -104,8 +104,14 @@ def cmd_show(args: argparse.Namespace) -> int:
 
     t = run.totals()
     meta = run.metadata
-    replay_of = f"  (replay of {meta['replay_of']})" if "replay_of" in meta else ""
-    print(c.bold(f"run {run.run_id}") + f"  agent={run.agent}{replay_of}")
+    lineage = []
+    if "replay_of" in meta:
+        lineage.append(f"replay of {meta['replay_of']}")
+    if "branch_of" in meta:
+        lineage.append(f"branch of {meta['branch_of']}")
+    lineage_s = f"  ({', '.join(lineage)})" if lineage else ""
+    cost = f"  ~${t['cost_usd']:.4f}" + ("" if t.get("cost_complete") else "+")
+    print(c.bold(f"run {run.run_id}") + f"  agent={run.agent}{lineage_s}{cost}")
     print(
         c.dim(
             f"steps={t['steps']} llm={t['llm_calls']} tool={t['tool_calls']} "
@@ -119,20 +125,28 @@ def cmd_show(args: argparse.Namespace) -> int:
         kind = ev.get("kind", "?")
         seq = ev.get("seq", 0)
         dur = _fmt_ms(ev.get("duration_ms") or 0)
+        indent = "    " * (ev.get("depth") or 0)
         if kind == "llm":
             usage = ev.get("usage") or {}
             tok = f"tok {usage.get('prompt_tokens', 0)}+{usage.get('completion_tokens', 0)}"
             err = " " + c.red("ERR " + ev["error"]) if ev.get("error") else ""
-            print(f"  #{seq:<3} llm  {ev.get('model') or '?':<20} {dur:>8}  {tok}{err}")
+            print(f"{indent}  #{seq:<3} llm  {ev.get('model') or '?':<20} {dur:>8}  {tok}{err}")
         elif kind == "tool":
-            err = " " + c.red(ev["error"]) if ev.get("error") else ""
-            print(f"  #{seq:<3} tool {ev.get('name') or '?':<20} {dur:>8}{err}")
+            err = " " + c.red("ERR " + ev["error"]) if ev.get("error") else ""
+            print(f"{indent}  #{seq:<3} tool {ev.get('name') or '?':<20} {dur:>8}{err}")
+        elif kind == "span":
+            phase = "enter" if ev.get("phase") == "enter" else "exit "
+            err = " " + c.red("ERR " + ev["error"]) if ev.get("error") else ""
+            print(
+                f"{indent}  #{seq:<3} span {c.blue('[' + phase + '] ' + str(ev.get('name', '')))}"
+                f"{c.reset}{dur:>8}{err}"
+            )
         elif kind == "log":
-            print(f"  #{seq:<3} log  {c.dim(str(ev.get('message', '')))}{c.reset}")
+            print(f"{indent}  #{seq:<3} log  {c.dim(str(ev.get('message', '')))}{c.reset}")
         elif kind == "error":
-            print(f"  #{seq:<3} {c.red('error ' + str(ev.get('error_type', '')) + ': ' + str(ev.get('message', '')))}{c.reset}")
+            print(f"{indent}  #{seq:<3} {c.red('error ' + str(ev.get('error_type', '')) + ': ' + str(ev.get('message', '')))}{c.reset}")
         else:
-            print(f"  #{seq:<3} {kind}")
+            print(f"{indent}  #{seq:<3} {kind}")
     print()
     print(c.dim(f"inspect a step: backspin show {os.path.basename(args.file)} --step N") + c.reset)
     return 0
@@ -142,7 +156,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
     c = _color()
     a = load_run(args.a)
     b = load_run(args.b)
-    report = diff_runs(a, b)
+    report = diff_runs(a, b, llm_only=args.llm_only)
     _print_diff(report, c)
     return 0 if report.identical else 1
 
@@ -194,6 +208,59 @@ def cmd_ui(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_branch(args: argparse.Namespace) -> int:
+    c = _color()
+    from .replay import branch as make_branch
+
+    change: dict = {}
+    if args.content is not None:
+        change["content"] = args.content
+    if args.tool_args:
+        try:
+            change["tool_arguments"] = json.loads(args.tool_args)
+        except json.JSONDecodeError as exc:
+            print(c.red(f"--tool-args is not valid JSON: {exc}") + c.reset)
+            return 2
+    if not change:
+        print(c.red("nothing to mutate: pass --content and/or --tool-args") + c.reset)
+        return 2
+
+    path = make_branch(args.file, {args.step: change}, dir=args.dir)
+    print(c.bold("branch run:") + f" {path}")
+    print()
+    report = diff_runs(load_run(args.file), load_run(path), llm_only=True)
+    _print_diff(report, c)
+    return 0
+
+
+def cmd_proxy(args: argparse.Namespace) -> int:
+    if bool(args.upstream) == bool(args.replay):
+        print("choose exactly one: --upstream URL (record) or --replay FILE (replay)")
+        return 2
+    try:
+        import uvicorn
+    except ImportError:
+        print("proxy mode needs: pip install 'backspin[proxy]'")
+        return 1
+    from .proxy import create_proxy_app
+
+    cassette = None
+    if args.replay:
+        from .replay import Cassette
+
+        cassette = Cassette.from_run(load_run(args.replay))
+    app = create_proxy_app(
+        upstream=args.upstream, cassette=cassette, runs_dir=args.dir
+    )
+    mode = f"replay of {os.path.basename(args.replay)}" if args.replay else f"record -> {args.upstream}"
+    print(f"backspin proxy [{mode}]")
+    print(f"endpoint : http://{args.host}:{args.port}/v1  (point your agent's base_url here)")
+    if cassette is None:
+        print(f"recording: {app.state.recorder.path}")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 # --- parser -----------------------------------------------------------------
 
 
@@ -218,7 +285,24 @@ def build_parser() -> argparse.ArgumentParser:
     diff = sub.add_parser("diff", help="diff two runs; exits 1 when they differ")
     diff.add_argument("a", help="first run file")
     diff.add_argument("b", help="second run file")
+    diff.add_argument("--llm-only", action="store_true", help="align LLM calls only")
     diff.set_defaults(fn=cmd_diff)
+
+    br = sub.add_parser("branch", help="what-if: replay a run with one answer mutated")
+    br.add_argument("file", help="run file to branch from")
+    br.add_argument("--step", type=int, required=True, help="0-based LLM-call index to mutate")
+    br.add_argument("--content", default=None, help="replacement assistant content")
+    br.add_argument("--tool-args", default=None, help='replacement tool args as JSON, e.g. \'{"city": "Rome"}\'')
+    br.add_argument("--dir", default="runs", help="where to write the branch run")
+    br.set_defaults(fn=cmd_branch)
+
+    px = sub.add_parser("proxy", help="OpenAI-compatible local proxy: record or replay")
+    px.add_argument("--upstream", default=None, help="record mode: e.g. https://api.openai.com")
+    px.add_argument("--replay", default=None, help="replay mode: a recorded run file")
+    px.add_argument("--dir", default="runs", help="where recorded runs are written")
+    px.add_argument("--host", default="127.0.0.1")
+    px.add_argument("--port", type=int, default=8840)
+    px.set_defaults(fn=cmd_proxy)
 
     ui = sub.add_parser("ui", help="launch the local timeline viewer")
     ui.add_argument("--dir", default="runs", help="runs directory (default: runs)")

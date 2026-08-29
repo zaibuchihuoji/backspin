@@ -23,6 +23,8 @@ def _signature(ev: Dict[str, Any]) -> Tuple:
         return (LLM, fp)
     if kind == TOOL:
         return (TOOL, ev.get("name"))
+    if kind == "span":
+        return ("span", ev.get("phase"), ev.get("name"))
     return (kind, ev.get("message") or ev.get("error_type"))
 
 
@@ -75,8 +77,18 @@ class DiffReport:
         }
 
 
-def diff_runs(a: Run, b: Run) -> DiffReport:
-    """Diff two recorded runs of (nominally) the same agent."""
+def diff_runs(a: Run, b: Run, *, llm_only: bool = False) -> DiffReport:
+    """Diff two recorded runs of (nominally) the same agent.
+
+    ``llm_only=True`` restricts the alignment to LLM calls — useful when
+    comparing a :func:`backspin.replay.branch` run (LLM-only shape) against
+    the full original.
+    """
+    if llm_only:
+        from .runfile import Run as _Run
+
+        a = _Run(header=a.header, events=a.llm_calls(), path=a.path)
+        b = _Run(header=b.header, events=b.llm_calls(), path=b.path)
     sigs_a = [_signature(e) for e in a.events]
     sigs_b = [_signature(e) for e in b.events]
     n = max(len(a.events), len(b.events))

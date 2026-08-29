@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backspin"
-version = "0.2.0"
+version = "0.3.0"
 description = "The flight recorder for AI agents — record, replay, diff and debug agent runs, 100% local."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -36,10 +36,14 @@ dependencies = []
 
 [project.optional-dependencies]
 ui = ["fastapi>=0.100", "uvicorn>=0.23"]
+proxy = ["fastapi>=0.100", "uvicorn>=0.23", "httpx>=0.24"]
 dev = ["pytest>=7", "httpx>=0.24", "fastapi>=0.100", "uvicorn>=0.23", "openai>=1.30"]
 
 [project.scripts]
 backspin = "backspin.cli:main"
+
+[project.entry-points.pytest11]
+backspin = "backspin.pytest_plugin"
 
 [project.urls]
 Homepage = "https://github.com/backspin-dev/backspin"

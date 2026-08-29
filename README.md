@@ -75,7 +75,58 @@ answer = run_agent(stub)
 
 Requests are matched by fingerprint (model + messages) and fall back to call order with a warning. Use `backspin.replay.patch_openai(cassette)` to patch `openai.OpenAI` itself when you can't inject a client.
 
-**In tests** this becomes deterministic agent regression testing: record once, assert forever, at zero token cost.
+**In tests** this becomes deterministic agent regression testing: record once, assert forever, at zero token cost. The pytest plugin does the asserting for you:
+
+```python
+def test_my_agent(backspin):                       # pip-installed = auto-loaded
+    with backspin.record(agent="t") as rec:
+        run_agent(rec.capture_openai(client))
+    backspin.assert_replays_identically()          # strict: fingerprint-exact replay
+```
+
+## What-if branching
+
+The debugger superpower: change one answer, keep everything else constant, and see what the timeline looks like downstream.
+
+```python
+from backspin import branch, diff_runs, load_run
+
+branch_path = branch("runs/live.backspin.jsonl", {0: {"content": "Rome it is."}})
+report = diff_runs(load_run("runs/live.backspin.jsonl"), load_run(branch_path), llm_only=True)
+print(report.first_divergence)   # the step where the two timelines split
+```
+
+Or from the CLI: `backspin branch runs/live.jsonl --step 0 --content "Rome it is."` — writes a branch run (marked `branch_of`) and prints the divergence report.
+
+## Spans: structure, not just a flat list
+
+```python
+with rec.span("research", meta={"topic": "weather"}):
+    with rec.span("tool:search"):
+        ...
+    resp = client.chat.completions.create(...)   # recorded inside the span
+```
+
+Every event inside a span carries its `span_id` and nesting `depth`; spans are safe under concurrency (each asyncio task gets its own stack) and the viewer renders the tree. Spans never inflate duration totals.
+
+## Zero-code integration: `backspin proxy`
+
+Can't (or don't want to) instrument code? Run the OpenAI-compatible local proxy and point any agent at it — any framework, any language:
+
+```bash
+backspin proxy --upstream https://api.openai.com --port 8840
+# client: base_url = http://127.0.0.1:8840/v1   ← that's the whole integration
+```
+
+Every call is forwarded and captured, streaming included. Flip the same proxy into **replay mode** and it serves a recorded run back as an API — deterministic replay for agents written in any language, no SDK required:
+
+```bash
+backspin proxy --replay runs/live.backspin.jsonl --port 8840
+```
+
+## Costs
+
+A built-in price table (gpt-4o, claude, gemini, deepseek, …) turns token counts into money: `run.totals()["cost_usd"]`, a cost card in the viewer, `~$0.0142` in `backspin show`. Extending the table is a one-dict PR.
 
 ## Diff
 
@@ -148,14 +199,15 @@ They compose well: keep the dashboard if you like it, attach a backspin run when
 
 ## Status & roadmap
 
-backspin is a young project (v0.2) — the core loop (record → replay → diff → view) is complete, tested against the real OpenAI SDK, and covered by edge-case and performance suites. Next:
+backspin is a young project (v0.3) — the core loop (record → replay → what-if → diff → view) is complete, tested against the real OpenAI SDK, and covered by edge-case and performance suites. Next:
 
-- [ ] Async-native recorder API and structured spans (nested tool → sub-LLM hierarchy)
-- [ ] LangChain / Vercel AI SDK adapters; TypeScript SDK
-- [ ] Framework-agnostic **sidecar proxy mode** (point any agent at it, no SDK)
+- [x] ~~Async + streaming capture, spans, redaction, costs, pytest plugin~~ (shipped in 0.2/0.3)
+- [x] ~~Framework-agnostic sidecar proxy (record + replay modes)~~ (shipped in 0.3)
+- [ ] TypeScript SDK speaking the same run format
+- [ ] Agent-level what-if (re-run the whole agent against a mutated cassette, not just the request sequence)
 - [ ] TUI (`backspin tui`) for terminal people
-- [ ] Cost tables, deterministic clock/random stubs for full boundary capture
-- [ ] `pytest` fixture (`backspin.testing`) docs and golden-run CI pattern
+- [ ] Deterministic clock/random stubs for full boundary capture
+- [ ] Docs site with runnable examples
 
 ## Development
 

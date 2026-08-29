@@ -4,16 +4,23 @@ A :class:`Cassette` indexes the LLM calls of a recorded run. A stub client
 answers new calls from the cassette, matching by request fingerprint
 (model + messages) and falling back to call order — so you can re-run the
 agent offline, in tests, or against a fix, with the LLM held constant.
+
+What-if branching: :meth:`Cassette.mutate` alters one recorded answer and
+:func:`branch` records the mutated replay as a new run, so you can diff
+"what would have happened if the model had said X".
 """
 from __future__ import annotations
 
+import copy
+import json
 import warnings
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .fakes import FakeResponse, stream_chunks
-from .runfile import Run, fingerprint_request
+from .recorder import Recorder
+from .runfile import Run, fingerprint_request, load_run
 
 
 class ReplayMismatchWarning(UserWarning):
@@ -72,6 +79,38 @@ class Cassette:
                 stacklevel=3,
             )
         return entry
+
+    def mutate(
+        self,
+        index: int,
+        *,
+        content: Optional[str] = None,
+        tool_arguments: Optional[Dict[str, Any]] = None,
+    ) -> "Cassette":
+        """What-if: return a copy with recording ``#index``'s answer altered.
+
+        ``content`` replaces the assistant message text; ``tool_arguments``
+        (a dict) replaces the first tool call's arguments, stored as JSON.
+        Requests are untouched, so replay matching still works — only the
+        answer the agent sees changes. Combine with :func:`branch` or
+        ``stub_client`` to measure the downstream effect.
+        """
+        if not 0 <= index < len(self.entries):
+            raise IndexError(
+                f"recording #{index} out of range (cassette has {len(self.entries)})"
+            )
+        entries = copy.deepcopy(self.entries)
+        resp = entries[index]["response"]
+        choices = resp.get("choices") or [{}]
+        message = choices[0].setdefault("message", {"role": "assistant"})
+        if content is not None:
+            message["content"] = content
+        if tool_arguments is not None:
+            calls = message.get("tool_calls")
+            if not calls:
+                raise ValueError("that recording has no tool calls to mutate")
+            calls[0].setdefault("function", {})["arguments"] = json.dumps(tool_arguments)
+        return Cassette(entries)
 
 
 class _StubCompletions:
@@ -146,3 +185,74 @@ def patch_openai(cassette: Cassette):
         yield SimpleNamespace(sync=sync_client, async_=async_client)
     finally:
         openai.OpenAI, openai.AsyncOpenAI = saved
+
+
+def branch(
+    run: Union[Run, str],
+    mutations: Dict[int, Dict[str, Any]],
+    *,
+    dir: str = "runs",
+    agent: Optional[str] = None,
+) -> str:
+    """What-if: record a replayed run with selected answers mutated.
+
+    ``mutations`` maps a 0-based LLM-call index to
+    :meth:`Cassette.mutate` kwargs, e.g. ``{1: {"content": "No."}}``. Every
+    recorded LLM request is re-issued in order against the mutated cassette
+    and captured into a new run file marked ``branch_of`` in its metadata.
+
+    Returns the new run's path. Diff it against the original with
+    ``diff_runs(original, branch, llm_only=True)`` — requests match until
+    the mutated answer flows back into a later request, which is exactly
+    where the two timelines split.
+    """
+    run_obj = load_run(run) if isinstance(run, str) else run
+    if not mutations:
+        raise ValueError("branch(): pass at least one mutation, e.g. {0: {'content': 'No.'}}")
+    cassette = Cassette.from_run(run_obj)
+    calls = run_obj.llm_calls()
+
+    # Text substitutions that carry mutations forward: when a mutated answer
+    # would have been fed back into a later request, rewrite that request's
+    # assistant messages to the mutated text. (Content-level rewriting; tool
+    # call arguments in follow-up requests are left as recorded.)
+    substitutions: Dict[str, str] = {}
+    for index in sorted(mutations):
+        if not 0 <= index < len(calls):
+            raise IndexError(
+                f"mutation step {index} out of range (run has {len(calls)} LLM calls)"
+            )
+        before = (calls[index].get("response") or {}).get("choices", [{}])[0].get("message", {}).get("content")
+        cassette = cassette.mutate(index, **mutations[index])
+        after = (cassette.entries[index]["response"]["choices"][0]["message"].get("content"))
+        if before is not None and after != before:
+            substitutions[before] = after
+
+    rec = Recorder(
+        dir=dir,
+        agent=agent or run_obj.agent,
+        metadata={
+            "branch_of": run_obj.run_id,
+            "mutations": {str(k): v for k, v in sorted(mutations.items())},
+        },
+    )
+    with rec:
+        stub = rec.capture_openai(stub_client(cassette))
+        with warnings.catch_warnings():
+            # fingerprint fallbacks are the point of a branch: mutated
+            # answers change later requests by design
+            warnings.simplefilter("ignore", ReplayMismatchWarning)
+            for entry in calls:
+                if entry.get("response") is None:
+                    continue
+                request = dict(entry.get("request") or {})
+                messages = [
+                    dict(m, content=substitutions[m["content"]])
+                    if m.get("role") == "assistant" and m.get("content") in substitutions
+                    else m
+                    for m in (request.get("messages") or [])
+                ]
+                stub.chat.completions.create(
+                    model=request.get("model"), messages=messages
+                )
+    return rec.path

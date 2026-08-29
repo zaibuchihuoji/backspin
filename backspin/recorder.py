@@ -7,6 +7,7 @@ before being re-raised.
 """
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
 import json
@@ -15,6 +16,8 @@ import tempfile
 import threading
 import time
 import traceback
+import uuid
+from contextlib import contextmanager, suppress
 from typing import Any, Callable, Dict, Optional
 
 from .runfile import (
@@ -33,7 +36,13 @@ from .runfile import (
 # Fields that stay in clear even under a redactor: they are structural
 # metadata the viewer, differ and replay matching rely on.
 _STRUCTURAL_FIELDS = frozenset(
-    {"model", "name", "duration_ms", "fingerprint", "error_type", "level"}
+    {"model", "name", "duration_ms", "fingerprint", "error_type", "level",
+     "span_id", "parent", "depth", "phase"}
+)
+
+# Current span path, per execution context (async tasks get isolated stacks).
+_span_stack: contextvars.ContextVar = contextvars.ContextVar(
+    "backspin_span_stack", default=()
 )
 
 
@@ -113,8 +122,52 @@ class Recorder:
                 # redactor.
                 if key not in ("kind", "ts") and key not in _STRUCTURAL_FIELDS:
                     ev[key] = self._redact(ev[key])
+        stack = _span_stack.get()
+        if stack:
+            # span events carry their own ids/depths; regular events inherit
+            # the innermost open span
+            ev.setdefault("span_id", stack[-1][0])
+            ev.setdefault("depth", len(stack))
         self._write_line(ev)
         return ev
+
+    @contextmanager
+    def span(self, name: str, meta: Optional[Dict[str, Any]] = None):
+        """Open a named span: everything recorded inside is nested under it.
+
+        Spans nest arbitrarily (agent -> tool -> sub-LLM) and are safe under
+        concurrency — each asyncio task (or thread that copies the context)
+        gets its own stack, so parallel branches don't interleave. An
+        exception inside the span is recorded on the exit event and
+        re-raised.
+        """
+        sid = uuid.uuid4().hex[:8]
+        parent_stack = _span_stack.get()
+        parent = parent_stack[-1][0] if parent_stack else None
+        depth = len(parent_stack)
+        self._emit(
+            "span", phase="enter", name=name, span_id=sid,
+            parent=parent, depth=depth, meta=jsonable(meta),
+        )
+        token = _span_stack.set(parent_stack + ((sid, name),))
+        t0 = time.perf_counter()
+        try:
+            yield self
+        except BaseException as exc:
+            self._emit(
+                "span", phase="exit", name=name, span_id=sid, parent=parent,
+                depth=depth, error=str(exc), error_type=type(exc).__name__,
+                duration_ms=round((time.perf_counter() - t0) * 1000, 1),
+            )
+            raise
+        else:
+            self._emit(
+                "span", phase="exit", name=name, span_id=sid, parent=parent,
+                depth=depth, duration_ms=round((time.perf_counter() - t0) * 1000, 1),
+            )
+        finally:
+            with suppress(ValueError):
+                _span_stack.reset(token)
 
     def close(self) -> None:
         with self._lock:

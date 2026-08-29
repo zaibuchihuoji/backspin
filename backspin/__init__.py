@@ -10,12 +10,13 @@ from .replay import (
     Cassette,
     ReplayMismatch,
     ReplayMismatchWarning,
+    branch,
     patch_openai,
     stub_client,
 )
 from .runfile import FILE_SUFFIX, Run, load_run
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "Recorder",
@@ -25,6 +26,7 @@ __all__ = [
     "Cassette",
     "stub_client",
     "patch_openai",
+    "branch",
     "ReplayMismatch",
     "ReplayMismatchWarning",
     "diff_runs",

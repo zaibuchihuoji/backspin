@@ -73,7 +73,58 @@ answer = run_agent(stub)
 
 请求按指纹匹配(model + messages),匹配不上时按调用顺序回退并给出警告。没法注入 client 的话,用 `backspin.replay.patch_openai(cassette)` 直接 patch `openai.OpenAI`。
 
-**放进测试**,就是确定性的 agent 回归测试:录一次,断言到永远,零 token 成本。
+**放进测试**,就是确定性的 agent 回归测试:录一次,断言到永远,零 token 成本。pytest 插件连断言都帮你写好了:
+
+```python
+def test_my_agent(backspin):                       # 装了包即自动加载
+    with backspin.record(agent="t") as rec:
+        run_agent(rec.capture_openai(client))
+    backspin.assert_replays_identically()          # 严格模式:指纹必须精确匹配
+```
+
+## What-if 分支:改一个回答,看下游
+
+调试器的核心超能力:固定其它一切,只改某一步的模型回答,看看时间线如何变化。
+
+```python
+from backspin import branch, diff_runs, load_run
+
+branch_path = branch("runs/live.backspin.jsonl", {0: {"content": "Rome it is."}})
+report = diff_runs(load_run("runs/live.backspin.jsonl"), load_run(branch_path), llm_only=True)
+print(report.first_divergence)   # 两条时间线从哪一步开始分岔
+```
+
+命令行等价:`backspin branch runs/live.jsonl --step 0 --content "Rome it is."` —— 写出一个 `branch_of` 标记的分支 run 并打印分岔报告。
+
+## Span:结构化层级,不是平铺列表
+
+```python
+with rec.span("research", meta={"topic": "weather"}):
+    with rec.span("tool:search"):
+        ...
+    resp = client.chat.completions.create(...)   # 记录在 span 内部
+```
+
+span 内的每个事件都带 `span_id` 和嵌套 `depth`;并发安全(asyncio 每个任务独立栈);查看器渲染成树。span 的耗时不会重复计入总时长。
+
+## 零侵入接入:`backspin proxy`
+
+不方便改代码?跑一个 OpenAI 兼容的本地代理,把 agent 的 base_url 指过来——任何框架、任何语言:
+
+```bash
+backspin proxy --upstream https://api.openai.com --port 8840
+# 客户端: base_url = http://127.0.0.1:8840/v1   ← 接入到此为止
+```
+
+所有调用被转发并录制,流式同样支持。同一个代理翻到**回放模式**,就能把录制的 run 作为 API 供出去——任何语言写的 agent 都能确定性回放,无需 SDK:
+
+```bash
+backspin proxy --replay runs/live.backspin.jsonl --port 8840
+```
+
+## 成本
+
+内置价格表(gpt-4o、claude、gemini、deepseek……)把 token 变成钱:`run.totals()["cost_usd"]`、查看器的成本卡片、`backspin show` 里的 `~$0.0142`。补充价格表就是一个字典的 PR。
 
 ## 对比
 
@@ -146,14 +197,15 @@ rec = Recorder(
 
 ## 状态与路线图
 
-backspin 还很年轻(v0.2)——核心闭环(录制 → 回放 → 对比 → 查看)已完成,通过了真实 OpenAI SDK 的集成测试,并有边界场景与性能测试兜底。接下来:
+backspin 还很年轻(v0.3)——核心闭环(录制 → 回放 → what-if → 对比 → 查看)已完成,通过了真实 OpenAI SDK 的集成测试,并有边界场景与性能测试兜底。接下来:
 
-- [ ] 原生异步录制 API 与结构化 span(工具 → 子 LLM 的嵌套层级)
-- [ ] LangChain / Vercel AI SDK 适配器;TypeScript SDK
-- [ ] 框架无关的**旁路代理模式**(任何 agent 指过来就能录,无需 SDK)
+- [x] ~~异步+流式采集、span、脱敏、成本、pytest 插件~~(0.2/0.3 已发布)
+- [x] ~~框架无关的旁路代理(录制 + 回放双模式)~~(0.3 已发布)
+- [ ] TypeScript SDK(同一 run 格式)
+- [ ] agent 级 what-if(对整个 agent 重放变异后的 cassette,而非仅请求序列)
 - [ ] 终端 TUI(`backspin tui`)
-- [ ] 成本表、确定性时钟/随机数桩,实现完整边界捕获
-- [ ] `pytest` fixture(`backspin.testing`)文档与 golden-run CI 模式
+- [ ] 确定性时钟/随机数桩,实现完整边界捕获
+- [ ] 带可运行示例的文档站
 
 ## 开发
 

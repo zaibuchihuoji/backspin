@@ -123,8 +123,13 @@ def make_app() -> FastAPI:
 
 def start_server() -> str:
     """Start the mock server on a free port; return its base_url."""
+    return start_uvicorn(make_app())
+
+
+def start_uvicorn(app) -> str:
+    """Start any ASGI app on a free port; return its origin URL."""
     config = uvicorn.Config(
-        make_app(), host="127.0.0.1", port=free_port(), log_level="error", lifespan="off"
+        app, host="127.0.0.1", port=free_port(), log_level="error", lifespan="off"
     )
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
@@ -133,5 +138,5 @@ def start_server() -> str:
     while not server.started and time.time() < deadline:
         time.sleep(0.05)
     if not server.started:
-        raise RuntimeError("mock OpenAI server failed to start")
-    return f"http://127.0.0.1:{config.port}/v1"
+        raise RuntimeError("server failed to start")
+    return f"http://127.0.0.1:{config.port}"

@@ -92,14 +92,18 @@ function renderRun() {
   $("#diff-select").hidden = true;
 
   $("#summary").hidden = false;
-  $("#summary").innerHTML = [
+  const cards = [
     card("agent", run.agent || "?"),
     card("steps", t.steps),
     card("llm calls", t.llm_calls),
     card("tool calls", t.tool_calls),
     card("tokens", `${t.prompt_tokens ?? 0}<small>in</small> + ${t.completion_tokens ?? 0}<small>out</small>`),
     card("recorded step time", fmtMs(t.duration_ms || 0)),
-  ].join("");
+  ];
+  if (t.cost_usd != null && t.cost_usd > 0) {
+    cards.push(card("est. cost", `$${t.cost_usd.toFixed(4)}` + (t.cost_complete ? "" : "<small>+ partial</small>")));
+  }
+  $("#summary").innerHTML = cards.join("");
 
   $("#waterfall-wrap").hidden = false;
   $("#wf-title").textContent = `Timeline — ${run.name}`;
@@ -112,9 +116,12 @@ function card(k, v) {
 
 function renderWaterfall(events) {
   const wf = $("#waterfall");
-  const maxDur = Math.max(1, ...events.map((e) => e.duration_ms || 0));
+  const visible = events.filter(
+    (e) => !(e.kind === "span" && e.phase === "enter")
+  );
+  const maxDur = Math.max(1, ...visible.map((e) => e.duration_ms || 0));
   wf.innerHTML = "";
-  for (const ev of events) {
+  for (const ev of visible) {
     const row = document.createElement("div");
     const kind = ev.kind || "custom";
     row.className = `row kind-${kind}` + (ev.error ? " error" : "");
@@ -122,6 +129,7 @@ function renderWaterfall(events) {
     const label =
       kind === "llm" ? ev.model || "llm"
       : kind === "tool" ? ev.name || "tool"
+      : kind === "span" ? (ev.phase === "exit" ? "↳ " : "") + (ev.name || "span")
       : kind === "log" ? String(ev.message || "").slice(0, 60)
       : kind === "error" ? String(ev.message || "").slice(0, 60)
       : kind;
@@ -133,6 +141,7 @@ function renderWaterfall(events) {
       <div class="track"><div class="bar" style="width:${pct}%"></div></div>
       <span class="dur">${ev.duration_ms != null ? fmtMs(ev.duration_ms) : ""}</span>
       <span class="tok">${usage.prompt_tokens != null ? usage.prompt_tokens + "+" + usage.completion_tokens : ""}</span>`;
+    row.style.marginLeft = (ev.depth || 0) * 16 + "px";
     row.addEventListener("click", () => selectStep(ev));
     wf.appendChild(row);
   }

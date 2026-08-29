@@ -144,8 +144,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .kind-log .bar { background: #3d444d; }
 .kind-error .bar { background: var(--red); }
 .kind-custom .bar { background: var(--purple); }
+.kind-span .bar { background: var(--purple); opacity: 0.55; }
 .kind-llm .lbl { color: var(--accent); }
 .kind-tool .lbl { color: var(--green); }
+.kind-span .lbl { color: var(--purple); }
 .kind-error .lbl { color: var(--red); }
 .row.error .dur { color: var(--red); }
 
