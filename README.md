@@ -228,12 +228,12 @@ They compose well: keep the dashboard if you like it, attach a backspin run when
 
 ## Status & roadmap
 
-backspin is a young project (v0.4) — record → replay → what-if → diff → view works end to end across OpenAI and Anthropic protocols, from Python and TypeScript, verified against the real SDKs. Next:
+backspin is a young project (v0.5) — record → replay → what-if → diff → view works end to end across OpenAI and Anthropic protocols, from Python and TypeScript, verified against the real SDKs. Next:
 
 - [x] ~~Async + streaming capture, spans, redaction, costs, pytest plugin~~ (0.2/0.3)
 - [x] ~~Sidecar proxy: record + replay, OpenAI protocol~~ (0.3)
 - [x] ~~Anthropic native: SDK capture + proxy `/v1/messages`; TypeScript SDK; export/share/TUI~~ (0.4)
-- [ ] Agent-level what-if (re-run the whole agent against a mutated cassette)
+- [x] ~~Agent-level what-if (re-run the whole agent against a mutated cassette)~~ (0.5)
 - [ ] Docs site with runnable examples
 - [ ] Deterministic clock/random stubs for full boundary capture
 

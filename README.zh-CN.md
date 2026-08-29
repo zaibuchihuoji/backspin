@@ -219,12 +219,12 @@ rec = Recorder(
 
 ## 状态与路线图
 
-backspin 还很年轻(v0.4)——录制 → 回放 → what-if → 对比 → 查看全链路可用,横跨 OpenAI 与 Anthropic 协议、Python 与 TypeScript 双 SDK,全部通过真实 SDK 集成测试。接下来:
+backspin 还很年轻(v0.5)——录制 → 回放 → what-if(请求级 + agent 级)→ 对比 → 查看全链路可用,横跨 OpenAI 与 Anthropic 协议、Python 与 TypeScript 双 SDK,全部通过真实 SDK 集成测试。接下来:
 
 - [x] ~~异步+流式采集、span、脱敏、成本、pytest 插件~~(0.2/0.3 已发布)
 - [x] ~~框架无关的旁路代理(录制 + 回放双模式)~~(0.3 已发布)
 - [x] ~~Anthropic 原生:SDK 捕获 + 代理 /v1/messages;TypeScript SDK;导出/分享/TUI~~(0.4 已发布)
-- [ ] agent 级 what-if(对整个 agent 重放变异后的 cassette,而非仅请求序列)
+- [x] ~~agent 级 what-if(对整个 agent 重放变异后的 cassette,而非仅请求序列)~~(0.5 已发布)
 - [ ] 确定性时钟/随机数桩,实现完整边界捕获
 - [ ] 带可运行示例的文档站
 

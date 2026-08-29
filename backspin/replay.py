@@ -272,3 +272,52 @@ def branch(
                     model=request.get("model"), messages=messages
                 )
     return rec.path
+
+
+def branch_agent(
+    fn: Callable,
+    run: Union[Run, str],
+    mutations: Dict[int, Dict[str, Any]],
+    *,
+    dir: str = "runs",
+    agent: Optional[str] = None,
+    extra_args: Optional[Tuple] = None,
+) -> str:
+    """Agent-level what-if: re-run the *actual agent function* against a
+    mutated cassette and record it as a branch run.
+
+    ``fn(client, rec, *extra_args)`` is your real agent function: ``client``
+    is a stub answering from the (mutated) cassette, and ``rec`` is the
+    branch run's recorder, so logs, spans, tool calls and downstream
+    requests all happen for real and preserve the run's full shape (unlike
+    :func:`branch`, which replays the request sequence only).
+
+    Returns the new run's path; metadata carries ``branch_of`` +
+    ``mutations``. Diff against the original with plain ``diff_runs`` —
+    shapes align, and the first divergence is where the mutated answer
+    changed the conversation.
+    """
+    run_obj = load_run(run) if isinstance(run, str) else run
+    if not callable(fn):
+        raise TypeError("branch_agent(): fn must be callable, taking (client, *extra_args)")
+    if not mutations:
+        raise ValueError("branch_agent(): pass at least one mutation, e.g. {0: {'content': 'No.'}}")
+    cassette = Cassette.from_run(run_obj)
+    for index in sorted(mutations):
+        cassette = cassette.mutate(index, **mutations[index])
+
+    rec = Recorder(
+        dir=dir,
+        agent=agent or run_obj.agent,
+        metadata={
+            "branch_of": run_obj.run_id,
+            "mutations": {str(k): v for k, v in sorted(mutations.items())},
+            "branch_level": "agent",
+        },
+    )
+    with rec:
+        stub = rec.capture_openai(stub_client(cassette))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ReplayMismatchWarning)
+            fn(stub, rec, *(extra_args or ()))
+    return rec.path

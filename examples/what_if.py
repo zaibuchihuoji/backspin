@@ -1,8 +1,13 @@
 """What-if demo: change one recorded answer, see where timelines split.
 
+Two levels:
+- `branch()`  replays the request sequence only (fast, protocol-level).
+- `branch_agent()` re-runs the ACTUAL agent function against the mutated
+  cassette — logs, tools and downstream requests all happen for real.
+
     python examples/what_if.py
 """
-from backspin import Recorder, branch, diff_runs, load_run
+from backspin import Recorder, branch, branch_agent, diff_runs, load_run
 from backspin.testing import FakeOpenAI
 
 SCRIPT = [
@@ -58,6 +63,15 @@ def main():
     assert original.llm_calls()[1]["request"]["messages"] != branched.llm_calls()[1][
         "request"
     ]["messages"]
+
+    # 4. Agent-level what-if: re-run the REAL agent (logs + tools included).
+    agent_branch = branch_agent(
+        run_agent, rec.path, {0: {"content": "Rome it is."}}, dir="runs"
+    )
+    report2 = diff_runs(original, load_run(agent_branch))
+    print("agent-level branch:", agent_branch)
+    print("full-shape divergence at event:", report2.first_divergence)
+    assert report2.first_divergence is not None
 
     print("\nbrowse original vs branch with:  backspin ui")
 

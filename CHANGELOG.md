@@ -2,6 +2,15 @@
 
 All notable changes to backspin are documented here.
 
+## 0.5.0 — 2026-08-29
+
+- **Agent-level what-if** — `branch_agent(fn, run, mutations)`: re-run the
+  actual agent function against a mutated cassette. Unlike `branch()`
+  (request-sequence replay), the full run shape — logs, tool calls, spans,
+  downstream requests — is regenerated for real, and `diff_runs` pins the
+  first divergence at the exact event where the mutation took effect.
+  `examples/what_if.py` demonstrates both levels.
+
 ## 0.4.1 — 2026-08-29
 
 - **Viewer i18n** — the local viewer is now Chinese-first with an EN/中文
