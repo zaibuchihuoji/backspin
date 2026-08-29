@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>backspin — agent run viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%8F%AA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div id="logo">backspin<span class="logo-dim">· agent flight recorder</span></div>
+  <div id="toolbar">
+    <select id="diff-select" hidden></select>
+    <button id="btn-diff" disabled title="compare this run with another">Compare with…</button>
+    <button id="btn-close-diff" hidden>Close diff</button>
+  </div>
+</header>
+
+<div id="layout">
+  <aside id="sidebar">
+    <h2>Runs</h2>
+    <ul id="run-list"></ul>
+  </aside>
+
+  <main id="main">
+    <div id="empty">
+      <h3>No run selected</h3>
+      <p>Pick a run on the left, or record one:</p>
+      <pre>from backspin import Recorder
+
+with Recorder(agent="my-agent") as rec:
+    client = rec.capture_openai(OpenAI())
+    ...  # your agent code</pre>
+      <p class="dim">Then run <code>backspin ui</code> and refresh.</p>
+    </div>
+    <section id="summary" class="cards" hidden></section>
+    <div id="banner" hidden></div>
+    <section id="waterfall-wrap" hidden>
+      <h2 id="wf-title">Timeline</h2>
+      <div id="waterfall"></div>
+    </section>
+    <section id="diff-table-wrap" hidden>
+      <h2>Diff</h2>
+      <table id="diff-table"></table>
+    </section>
+  </main>
+
+  <aside id="inspector" hidden>
+    <div id="insp-head">
+      <span id="insp-title"></span>
+      <button id="insp-close" title="close">✕</button>
+    </div>
+    <div id="insp-meta"></div>
+    <div id="insp-tabs">
+      <button class="tab" data-tab="request">Request</button>
+      <button class="tab" data-tab="response">Response</button>
+      <button class="tab active" data-tab="raw">Raw</button>
+    </div>
+    <pre id="insp-body"></pre>
+  </aside>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "backspin"
+version = "0.2.0"
+description = "The flight recorder for AI agents — record, replay, diff and debug agent runs, 100% local."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "backspin contributors" }]
+keywords = [
+  "llm",
+  "agents",
+  "record-replay",
+  "time-travel-debugging",
+  "observability",
+  "openai",
+  "mcp",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Debuggers",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = []
+
+[project.optional-dependencies]
+ui = ["fastapi>=0.100", "uvicorn>=0.23"]
+dev = ["pytest>=7", "httpx>=0.24", "fastapi>=0.100", "uvicorn>=0.23", "openai>=1.30"]
+
+[project.scripts]
+backspin = "backspin.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/backspin-dev/backspin"
+Issues = "https://github.com/backspin-dev/backspin/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backspin"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
