@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-29T14:56:02.147Z",
+  "sessionId": "sess_00b0aab4-bbf4-4e4c-936b-e85b2bdab9fc",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "D:\\opencode-sessions\\agent-debug&back\\tests\\test_cli.py",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 13,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}
