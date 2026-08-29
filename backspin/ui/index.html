@@ -1,47 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>backspin — agent run viewer</title>
+<title>backspin — agent 运行查看器</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%8F%AA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <div id="logo">backspin<span class="logo-dim">· agent flight recorder</span></div>
+  <div id="logo">backspin<span class="logo-dim" data-i18n="logo.sub">· agent 飞行记录仪</span></div>
   <div id="toolbar">
     <select id="diff-select" hidden></select>
-    <button id="btn-diff" disabled title="compare this run with another">Compare with…</button>
-    <button id="btn-close-diff" hidden>Close diff</button>
+    <button id="btn-diff" disabled data-i18n="btn.compare" title="与另一次运行对比">对比…</button>
+    <button id="btn-close-diff" hidden data-i18n="btn.closeDiff">关闭对比</button>
+    <button id="btn-lang" title="switch language">EN</button>
   </div>
 </header>
 
 <div id="layout">
   <aside id="sidebar">
-    <h2>Runs</h2>
+    <h2 data-i18n="side.runs">运行记录</h2>
     <ul id="run-list"></ul>
   </aside>
 
   <main id="main">
     <div id="empty">
-      <h3>No run selected</h3>
-      <p>Pick a run on the left, or record one:</p>
+      <h3 data-i18n="empty.title">尚未选择运行</h3>
+      <p data-i18n="empty.pick">从左侧选择一次运行,或者先录制一次:</p>
       <pre>from backspin import Recorder
 
 with Recorder(agent="my-agent") as rec:
     client = rec.capture_openai(OpenAI())
-    ...  # your agent code</pre>
-      <p class="dim">Then run <code>backspin ui</code> and refresh.</p>
+    ...  # 你的 agent 代码</pre>
+      <p class="dim"><span data-i18n="empty.then">然后运行</span> <code>backspin ui</code> <span data-i18n="empty.refresh">并刷新本页。</span></p>
     </div>
     <section id="summary" class="cards" hidden></section>
     <div id="banner" hidden></div>
     <section id="waterfall-wrap" hidden>
-      <h2 id="wf-title">Timeline</h2>
+      <h2 id="wf-title" data-i18n="side.timeline">时间线</h2>
       <div id="waterfall"></div>
     </section>
     <section id="diff-table-wrap" hidden>
-      <h2>Diff</h2>
+      <h2 data-i18n="side.diff">对比</h2>
       <table id="diff-table"></table>
     </section>
   </main>
@@ -53,14 +54,15 @@ with Recorder(agent="my-agent") as rec:
     </div>
     <div id="insp-meta"></div>
     <div id="insp-tabs">
-      <button class="tab" data-tab="request">Request</button>
-      <button class="tab" data-tab="response">Response</button>
-      <button class="tab active" data-tab="raw">Raw</button>
+      <button class="tab" data-tab="request" data-i18n="tab.request">请求</button>
+      <button class="tab" data-tab="response" data-i18n="tab.response">响应</button>
+      <button class="tab active" data-tab="raw" data-i18n="tab.raw">原始</button>
     </div>
     <pre id="insp-body"></pre>
   </aside>
 </div>
 
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

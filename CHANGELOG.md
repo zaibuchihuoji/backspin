@@ -2,6 +2,13 @@
 
 All notable changes to backspin are documented here.
 
+## 0.4.1 — 2026-08-29
+
+- **Viewer i18n** — the local viewer is now Chinese-first with an EN/中文
+  toggle in the header (choice persisted in localStorage); share files
+  inherit the same interface. README screenshots updated.
+- `share` also inlines the new `i18n.js` asset.
+
 ## 0.4.0 — 2026-08-29
 
 Multi-provider release: Anthropic natively, TypeScript SDK, export/share/TUI.

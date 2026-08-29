@@ -16,7 +16,7 @@ from .replay import (
 )
 from .runfile import FILE_SUFFIX, Run, load_run
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "Recorder",

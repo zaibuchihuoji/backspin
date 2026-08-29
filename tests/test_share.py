@@ -24,7 +24,9 @@ def test_share_html_is_self_contained(tmp_path):
     # viewer assets are inlined, nothing is fetched
     assert 'href="style.css"' not in html
     assert 'src="app.js"' not in html
+    assert 'src="i18n.js"' not in html
     assert "renderWaterfall" in html  # app.js content present
+    assert "applyI18n" in html        # i18n.js content present
     assert ".row" in html             # style.css content present
     # run data embedded for the viewer
     assert "__BACKSPIN_EMBED__" in html

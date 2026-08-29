@@ -27,19 +27,23 @@ def build_share_html(run_path: str, title: Optional[str] = None) -> str:
 
     html = (_UI_DIR / "index.html").read_text(encoding="utf-8")
     css = (_UI_DIR / "style.css").read_text(encoding="utf-8")
+    i18n = (_UI_DIR / "i18n.js").read_text(encoding="utf-8")
     js = (_UI_DIR / "app.js").read_text(encoding="utf-8")
 
     html = html.replace(
         '<link rel="stylesheet" href="style.css">',
         "<style>\n" + css + "\n</style>",
     )
+    # i18n.js must be inlined before app.js (app.js calls its applyI18n/t).
     embed = (
+        "<script>\n" + i18n + "\n</script>\n"
         "<script>window.__BACKSPIN_EMBED__ = " + _safe_json(data) + ";</script>\n"
         "<script>\n" + js + "\n</script>"
     )
+    html = html.replace('<script src="i18n.js"></script>', "")
     html = html.replace('<script src="app.js"></script>', embed)
     if title:
-        html = html.replace("<title>backspin — agent run viewer</title>",
+        html = html.replace("<title>backspin — agent 运行查看器</title>",
                             "<title>" + title + "</title>")
     return html
 

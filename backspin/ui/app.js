@@ -1,4 +1,4 @@
-/* backspin viewer — zero-dependency, zero-build. */
+/* backspin viewer — zero-dependency, zero-build. 中文/EN via i18n.js. */
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
@@ -10,6 +10,13 @@ const state = {
   selectedSeq: null,
   tab: "raw",
 };
+
+applyI18n();
+$("#btn-lang").addEventListener("click", () => {
+  const next = LANG === "zh" ? "en" : "zh";
+  try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* ignore */ }
+  location.reload();
+});
 
 /* ---------- utilities ---------- */
 
@@ -44,22 +51,26 @@ function jsonBlock(obj) {
 /* ---------- sidebar ---------- */
 
 async function loadRuns() {
-  state.runs = await api("/api/runs");
+  if (window.__BACKSPIN_EMBED__) {
+    state.runs = [window.__BACKSPIN_EMBED__];
+  } else {
+    state.runs = await api("/api/runs");
+  }
   const ul = $("#run-list");
   ul.innerHTML = "";
   for (const r of state.runs) {
     const li = document.createElement("li");
     li.dataset.name = r.name;
-    const t = r.totals || {};
+    const totals = r.totals || {};
     li.innerHTML = `
       <div class="name">${esc(r.name)}</div>
-      <div class="meta">${esc(r.agent || "?")} · ${t.steps ?? "?"} steps · ${t.total_tokens ?? "?"} tok · ${esc(fmtDate(r.created_at))}</div>`;
+      <div class="meta">${esc(r.agent || "?")} · ${totals.steps ?? "?"} ${t("unit.steps")} · ${totals.total_tokens ?? "?"} tok · ${esc(fmtDate(r.created_at))}</div>`;
     li.addEventListener("click", () => selectRun(r.name));
     ul.appendChild(li);
   }
   const diffSelect = $("#diff-select");
   diffSelect.innerHTML =
-    `<option value="">— pick a run to compare —</option>` +
+    `<option value="">${esc(t("diff.pick"))}</option>` +
     state.runs.map((r) => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join("");
 }
 
@@ -72,7 +83,11 @@ function markActiveRun() {
 /* ---------- run view ---------- */
 
 async function selectRun(name) {
-  state.current = await api("/api/run/" + encodeURIComponent(name));
+  if (window.__BACKSPIN_EMBED__) {
+    state.current = window.__BACKSPIN_EMBED__;
+  } else {
+    state.current = await api("/api/run/" + encodeURIComponent(name));
+  }
   state.selectedSeq = null;
   state.compareWith = null;
   state.diff = null;
@@ -83,35 +98,35 @@ async function selectRun(name) {
 
 function renderRun() {
   const run = state.current;
-  const t = run.totals || {};
+  const totals = run.totals || {};
   $("#empty").hidden = true;
   $("#diff-table-wrap").hidden = true;
   $("#banner").hidden = true;
-  $("#btn-diff").disabled = false;
+  $("#btn-diff").disabled = !!window.__BACKSPIN_EMBED__;
   $("#btn-close-diff").hidden = true;
   $("#diff-select").hidden = true;
 
   $("#summary").hidden = false;
   const cards = [
-    card("agent", run.agent || "?"),
-    card("steps", t.steps),
-    card("llm calls", t.llm_calls),
-    card("tool calls", t.tool_calls),
-    card("tokens", `${t.prompt_tokens ?? 0}<small>in</small> + ${t.completion_tokens ?? 0}<small>out</small>`),
-    card("recorded step time", fmtMs(t.duration_ms || 0)),
+    card("card.agent", esc(run.agent || "?")),
+    card("card.steps", totals.steps),
+    card("card.llm", totals.llm_calls),
+    card("card.tools", totals.tool_calls),
+    card("card.tokens", `${totals.prompt_tokens ?? 0}<small>${t("unit.in")}</small> + ${totals.completion_tokens ?? 0}<small>${t("unit.out")}</small>`),
+    card("card.duration", fmtMs(totals.duration_ms || 0)),
   ];
-  if (t.cost_usd != null && t.cost_usd > 0) {
-    cards.push(card("est. cost", `$${t.cost_usd.toFixed(4)}` + (t.cost_complete ? "" : "<small>+ partial</small>")));
+  if (totals.cost_usd != null && totals.cost_usd > 0) {
+    cards.push(card("card.cost", `$${totals.cost_usd.toFixed(4)}` + (totals.cost_complete ? "" : "<small>+ partial</small>")));
   }
   $("#summary").innerHTML = cards.join("");
 
   $("#waterfall-wrap").hidden = false;
-  $("#wf-title").textContent = `Timeline — ${run.name}`;
+  $("#wf-title").textContent = `${t("timeline.title")} — ${run.name}`;
   renderWaterfall(run.events);
 }
 
-function card(k, v) {
-  return `<div class="card"><div class="k">${esc(k)}</div><div class="v">${v}</div></div>`;
+function card(key, v) {
+  return `<div class="card"><div class="k">${esc(t(key))}</div><div class="v">${v}</div></div>`;
 }
 
 function renderWaterfall(events) {
@@ -157,24 +172,25 @@ function selectStep(ev) {
   const insp = $("#inspector");
   insp.hidden = false;
   const kind = ev.kind || "custom";
+  const kindLabel = { llm: t("kind.llm"), tool: t("kind.tool"), span: t("kind.span"), log: t("kind.log") }[kind] || kind;
   const title =
-    kind === "llm" ? `#${ev.seq} LLM · ${ev.model || "?"}`
-    : kind === "tool" ? `#${ev.seq} tool · ${ev.name || "?"}`
-    : `#${ev.seq} ${kind}`;
+    kind === "llm" ? `#${ev.seq} ${t("kind.llm")} · ${ev.model || "?"}`
+    : kind === "tool" ? `#${ev.seq} ${t("kind.tool")} · ${ev.name || "?"}`
+    : `#${ev.seq} ${kindLabel}`;
   $("#insp-title").textContent = title;
   const bits = [];
   if (ev.duration_ms != null) bits.push(fmtMs(ev.duration_ms));
-  if (ev.usage) bits.push(`${ev.usage.prompt_tokens} in / ${ev.usage.completion_tokens} out`);
+  if (ev.usage) bits.push(`${ev.usage.prompt_tokens} ${t("unit.in")} / ${ev.usage.completion_tokens} ${t("unit.out")}`);
   if (ev.fingerprint) bits.push("fp " + ev.fingerprint);
   if (ev.error) bits.push("ERROR: " + ev.error);
   $("#insp-meta").textContent = bits.join(" · ");
 
-  const tabs = ["request", "response"].filter((t) => ev[t] != null);
+  const tabs = ["request", "response"].filter((tb) => ev[tb] != null);
   document.querySelectorAll("#insp-tabs .tab").forEach((btn) => {
-    const t = btn.dataset.tab;
-    btn.style.display = t === "raw" || tabs.includes(t) ? "" : "none";
-    if (t !== "raw" && !tabs.includes(t) && state.tab === t) state.tab = "raw";
-    btn.classList.toggle("active", t === state.tab);
+    const tb = btn.dataset.tab;
+    btn.style.display = tb === "raw" || tabs.includes(tb) ? "" : "none";
+    if (tb !== "raw" && !tabs.includes(tb) && state.tab === tb) state.tab = "raw";
+    btn.classList.toggle("active", tb === state.tab);
   });
   renderInspectorBody(ev);
 }
@@ -211,31 +227,35 @@ async function renderDiff() {
   banner.hidden = false;
   if (rep.identical) {
     banner.classList.add("ok");
-    banner.innerHTML = `<b>Identical.</b> Both runs made the same requests in the same order (${rep.a.totals.steps} steps).`;
+    banner.innerHTML = `<b>${esc(t("badge.same"))}.</b> ` + esc(
+      t("banner.identical", { n: rep.a.totals.steps }));
   } else if (rep.first_divergence != null) {
     banner.classList.remove("ok");
     const s = rep.steps[rep.first_divergence];
-    banner.innerHTML = `<b>Diverged at step #${rep.first_divergence}</b> (${esc(s.kind)}: ` +
-      `${esc(s.a ? s.a.label : "—")} vs ${esc(s.b ? s.b.label : "—")}). ` +
-      `Everything before this step matches.`;
+    banner.innerHTML = `<b>${t("banner.diverged", {
+      n: rep.first_divergence,
+      kind: esc(s.kind),
+      a: esc(s.a ? s.a.label : "—"),
+      b: esc(s.b ? s.b.label : "—"),
+    })}</b>`;
   } else {
     banner.classList.remove("ok");
-    banner.innerHTML = `<b>Same requests, different shape.</b> One run has extra or missing steps.`;
+    banner.textContent = t("banner.shape");
   }
 
   const table = $("#diff-table");
   const rows = rep.steps.map((s) => {
     const la = s.a ? `${s.a.label} · ${fmtMs(s.a.duration_ms)}` : "—";
     const lb = s.b ? `${s.b.label} · ${fmtMs(s.b.duration_ms)}` : "—";
-    const badge = s.same === true ? `<span class="badge-yes">same</span>`
-      : s.same === false ? `<span class="badge-no">DIFF</span>`
-      : `<span class="badge-solo">solo</span>`;
+    const badge = s.same === true ? `<span class="badge-yes">${esc(t("badge.same"))}</span>`
+      : s.same === false ? `<span class="badge-no">${esc(t("badge.diff"))}</span>`
+      : `<span class="badge-solo">${esc(t("badge.solo"))}</span>`;
     const cls = s.same === false ? "diverged" : (s.same == null ? "solo" : "");
     return `<tr class="${cls}"><td>#${s.index}</td><td>${esc(s.kind)}</td><td>${esc(la)}</td><td>${esc(lb)}</td><td>${badge}</td></tr>`;
   }).join("");
   const ta = rep.a.totals, tb = rep.b.totals;
   table.innerHTML = `
-    <thead><tr><th>#</th><th>kind</th><th>${esc(a)}</th><th>${esc(b)}</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>${esc(t("diff.kind"))}</th><th>${esc(a)}</th><th>${esc(b)}</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td></td><td></td>
       <td>${ta.total_tokens} tok · ${fmtMs(ta.duration_ms)}</td>
