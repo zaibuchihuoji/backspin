@@ -1,6 +1,6 @@
 # backspin
 
-[![CI](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml/badge.svg)](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml)
+[![CI](https://github.com/zaibuchihuoji/backspin/actions/workflows/ci.yml/badge.svg)](https://github.com/zaibuchihuoji/backspin/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/backspin)](https://pypi.org/project/backspin/)
 [![Python](https://img.shields.io/pypi/pyversions/backspin)](https://pypi.org/project/backspin/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

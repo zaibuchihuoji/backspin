@@ -4,7 +4,7 @@
 
 Please report security vulnerabilities privately — do **not** open a public
 issue. Use [GitHub's private vulnerability reporting](
-https://github.com/backspin-dev/backspin/security/advisories/new), or email
+https://github.com/zaibuchihuoji/backspin/security/advisories/new), or email
 the maintainers. We aim to respond within 72 hours.
 
 ## Threat model worth knowing about

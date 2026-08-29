@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag `vX.Y.Z` to publish. PyPI uses trusted publishing (no token):
 # configure the "backspin" project on pypi.org once —
-# Settings > Publishing > add GitHub publisher (repo: backspin-dev/backspin,
+# Settings > Publishing > add GitHub publisher (repo: zaibuchihuoji/backspin,
 # workflow: release.yml, environment: pypi).
 on:
   push:

@@ -59,10 +59,10 @@ backspin = "backspin.cli:main"
 backspin = "backspin.pytest_plugin"
 
 [project.urls]
-Homepage = "https://github.com/backspin-dev/backspin"
-Repository = "https://github.com/backspin-dev/backspin"
-Issues = "https://github.com/backspin-dev/backspin/issues"
-Changelog = "https://github.com/backspin-dev/backspin/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/zaibuchihuoji/backspin"
+Repository = "https://github.com/zaibuchihuoji/backspin"
+Issues = "https://github.com/zaibuchihuoji/backspin/issues"
+Changelog = "https://github.com/zaibuchihuoji/backspin/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backspin"]

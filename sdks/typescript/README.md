@@ -6,7 +6,7 @@ LLM call and tool call of an agent run into one portable
 access, and diff two runs to find the exact step where behavior diverged.
 100% local, zero runtime dependencies.
 
-Run files are the same format as the [Python package](https://github.com/backspin-dev/backspin):
+Run files are the same format as the [Python package](https://github.com/zaibuchihuoji/backspin):
 Python recordings replay in TypeScript and vice versa.
 
 ```ts

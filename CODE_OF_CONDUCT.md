@@ -52,7 +52,7 @@ when an individual is officially representing the community in public spaces.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement via a private
 message to the maintainers or via [GitHub's private vulnerability/advisory
-channel](https://github.com/backspin-dev/backspin/security/advisories/new) if
+channel](https://github.com/zaibuchihuoji/backspin/security/advisories/new) if
 private. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

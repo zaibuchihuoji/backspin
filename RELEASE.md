@@ -5,7 +5,7 @@ How a backspin release gets from a commit to PyPI and npm. Run it in order.
 ## 0. One-time setup
 
 - **PyPI trusted publishing**: on pypi.org → (project) → *Publishing*, add a
-  GitHub publisher for `backspin-dev/backspin`, workflow `release.yml`,
+  GitHub publisher for `zaibuchihuoji/backspin`, workflow `release.yml`,
   environment `pypi`. No API tokens needed after that.
 - **GitHub environment**: repo → Settings → Environments → create `pypi`
   (the release workflow references it).
