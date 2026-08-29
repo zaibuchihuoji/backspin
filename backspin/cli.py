@@ -10,8 +10,7 @@ from typing import List, Optional
 
 from . import __version__
 from .diff import DiffReport, diff_runs
-from .runfile import FILE_SUFFIX, Run, load_run
-
+from .runfile import FILE_SUFFIX, load_run
 
 # --- tiny ANSI helpers (ASCII output only, Windows-console safe) ----------
 
@@ -144,7 +143,9 @@ def cmd_show(args: argparse.Namespace) -> int:
         elif kind == "log":
             print(f"{indent}  #{seq:<3} log  {c.dim(str(ev.get('message', '')))}{c.reset}")
         elif kind == "error":
-            print(f"{indent}  #{seq:<3} {c.red('error ' + str(ev.get('error_type', '')) + ': ' + str(ev.get('message', '')))}{c.reset}")
+            etype = str(ev.get("error_type", ""))
+            msg = str(ev.get("message", ""))
+            print(f"{indent}  #{seq:<3} {c.red('error ' + etype + ': ' + msg)}{c.reset}")
         else:
             print(f"{indent}  #{seq:<3} {kind}")
     print()
@@ -252,7 +253,10 @@ def cmd_proxy(args: argparse.Namespace) -> int:
     app = create_proxy_app(
         upstream=args.upstream, cassette=cassette, runs_dir=args.dir
     )
-    mode = f"replay of {os.path.basename(args.replay)}" if args.replay else f"record -> {args.upstream}"
+    mode = (
+        f"replay of {os.path.basename(args.replay)}" if args.replay
+        else f"record -> {args.upstream}"
+    )
     print(f"backspin proxy [{mode}]")
     print(f"endpoint : http://{args.host}:{args.port}/v1  (point your agent's base_url here)")
     if cassette is None:
@@ -322,7 +326,10 @@ def build_parser() -> argparse.ArgumentParser:
     br.add_argument("file", help="run file to branch from")
     br.add_argument("--step", type=int, required=True, help="0-based LLM-call index to mutate")
     br.add_argument("--content", default=None, help="replacement assistant content")
-    br.add_argument("--tool-args", default=None, help='replacement tool args as JSON, e.g. \'{"city": "Rome"}\'')
+    br.add_argument(
+        "--tool-args", default=None,
+        help='replacement tool args as JSON, e.g. \'{"city": "Rome"}\'',
+    )
     br.add_argument("--dir", default="runs", help="where to write the branch run")
     br.set_defaults(fn=cmd_branch)
 

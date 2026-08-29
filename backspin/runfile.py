@@ -160,7 +160,7 @@ def load_run(path: str) -> Run:
     """Load and validate a ``*.backspin.jsonl`` run file."""
     header: Optional[Dict[str, Any]] = None
     events: List[Dict[str, Any]] = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             line = line.strip()
             if not line:

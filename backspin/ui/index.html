@@ -12,9 +12,9 @@
   <div id="logo">backspin<span class="logo-dim" data-i18n="logo.sub">· agent 飞行记录仪</span></div>
   <div id="toolbar">
     <select id="diff-select" hidden></select>
-    <button id="btn-diff" disabled data-i18n="btn.compare" title="与另一次运行对比">对比…</button>
+    <button id="btn-diff" disabled data-i18n="btn.compare" data-i18n-title="tip.compare">对比…</button>
     <button id="btn-close-diff" hidden data-i18n="btn.closeDiff">关闭对比</button>
-    <button id="btn-lang" title="switch language">EN</button>
+    <button id="btn-lang" data-i18n-title="tip.lang">EN</button>
   </div>
 </header>
 
@@ -50,13 +50,13 @@ with Recorder(agent="my-agent") as rec:
   <aside id="inspector" hidden>
     <div id="insp-head">
       <span id="insp-title"></span>
-      <button id="insp-close" title="close">✕</button>
+      <button id="insp-close" data-i18n-title="tip.close">✕</button>
     </div>
     <div id="insp-meta"></div>
-    <div id="insp-tabs">
-      <button class="tab" data-tab="request" data-i18n="tab.request">请求</button>
-      <button class="tab" data-tab="response" data-i18n="tab.response">响应</button>
-      <button class="tab active" data-tab="raw" data-i18n="tab.raw">原始</button>
+    <div id="insp-tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="request" data-i18n="tab.request">请求</button>
+      <button class="tab" role="tab" data-tab="response" data-i18n="tab.response">响应</button>
+      <button class="tab active" role="tab" aria-selected="true" data-tab="raw" data-i18n="tab.raw">原始</button>
     </div>
     <pre id="insp-body"></pre>
   </aside>

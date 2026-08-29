@@ -17,8 +17,9 @@ import threading
 import time
 import traceback
 import uuid
+import warnings
 from contextlib import contextmanager, suppress
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Literal, Optional
 
 from .runfile import (
     ERROR,
@@ -31,7 +32,6 @@ from .runfile import (
     make_header,
     new_run_id,
 )
-
 
 # Fields that stay in clear even under a redactor: they are structural
 # metadata the viewer, differ and replay matching rely on.
@@ -83,7 +83,10 @@ class Recorder:
         self._lock = threading.Lock()
         self._seq = 0
         self._closed = False
-        self._fp = tempfile.NamedTemporaryFile(
+        # no context manager here on purpose: the handle must outlive the
+        # constructor until close(); delete=False keeps a crash from
+        # destroying the evidence.
+        self._fp = tempfile.NamedTemporaryFile(  # noqa: SIM115
             mode="w",
             dir=root,
             prefix=f"{stamp}-{slug}-{self.run_id}-",
@@ -99,8 +102,7 @@ class Recorder:
 
     def _write_raw(self, ev: Dict[str, Any]) -> None:
         with self._lock:
-            self._fp.write(json.dumps(ev, ensure_ascii=False, default=str) + "\n")
-            self._fp.flush()
+            self._try_write(ev)
 
     def _write_line(self, ev: Dict[str, Any]) -> None:
         with self._lock:
@@ -108,8 +110,23 @@ class Recorder:
                 return
             self._seq += 1
             ev["seq"] = self._seq
+            self._try_write(ev)
+
+    def _try_write(self, ev: Dict[str, Any]) -> None:
+        """A recorder must never crash the agent it watches: on a write
+        failure (disk full, file vanished, closed file, ...) warn once and
+        stop writing instead of raising out of instrumented code."""
+        try:
             self._fp.write(json.dumps(ev, ensure_ascii=False, default=str) + "\n")
             self._fp.flush()
+        except (OSError, ValueError) as exc:
+            self._closed = True
+            warnings.warn(
+                f"backspin: stopping recording of run {self.run_id}: "
+                f"cannot write {self.path}: {exc}",
+                RuntimeWarning,
+                stacklevel=3,
+            )
 
     def _emit(self, kind: str, **payload: Any) -> Dict[str, Any]:
         ev: Dict[str, Any] = {"kind": kind, "ts": time.time()}
@@ -149,7 +166,7 @@ class Recorder:
             "span", phase="enter", name=name, span_id=sid,
             parent=parent, depth=depth, meta=jsonable(meta),
         )
-        token = _span_stack.set(parent_stack + ((sid, name),))
+        token = _span_stack.set((*parent_stack, (sid, name)))
         t0 = time.perf_counter()
         try:
             yield self
@@ -171,14 +188,14 @@ class Recorder:
 
     def close(self) -> None:
         with self._lock:
-            if not self._closed:
-                self._closed = True
+            self._closed = True
+            with suppress(OSError):  # release even a descriptor a failed write left open
                 self._fp.close()
 
     def __enter__(self) -> "Recorder":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, exc_type, exc, tb) -> Literal[False]:
         if exc is not None:
             self.record_error(exc)
         self.close()

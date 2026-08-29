@@ -2,6 +2,49 @@
 
 All notable changes to backspin are documented here.
 
+## 0.5.1 — 2026-08-29
+
+Hardening release: engineering-quality fixes found in a full project audit.
+
+- **TS SDK: async tools recorded correctly** — `Recorder.tool()` now awaits
+  async functions, recording the resolved value (previously a Promise, which
+  serialized to `{}`) with the real duration; async rejections are recorded
+  with their error. A stream the consumer abandons mid-loop is now still
+  recorded (`finalize` runs in `finally`). `diffRuns` no longer falls back to
+  `"[object Object]"` for fingerprint-less events.
+- **TS SDK: redaction parity** — `redactStrings(transform)` / `mask(regex)`
+  mirror the Python API; `Recorder({ redact })` keeps secrets out of run
+  files while structural fields stay readable. npm packaging hardened
+  (`files`, `exports`, `engines`, `prepublishOnly`, SDK LICENSE/README,
+  tests excluded from the tarball). Version sync: Python and TS SDK both
+  0.5.1.
+- **Recorder survives disk failures** — a run file that becomes unwritable
+  (disk full, closed handle) stops recording with one `RuntimeWarning`
+  instead of raising into instrumented agent code (a stated ground rule).
+- **Stream context managers no longer swallow exceptions** — `__exit__` in
+  both OpenAI and Anthropic stream wrappers returned from a `finally`
+  block, which could discard in-flight exceptions; rewritten.
+- **Proxy hardening** — non-object JSON bodies return a clean 400 instead
+  of an unhandled 500 (both `/v1/chat/completions` and `/v1/messages`).
+- **Viewer API** — a well-formed but missing run name returns 404 instead
+  of a 500; corrupt runs still return 422.
+- **Viewer UI** — language toggle re-renders in place (no page reload),
+  `title` attributes and `<html lang>` localize, cards escape by default,
+  run list / timeline rows / tabs are keyboard-operable (roles, tabindex,
+  Enter/Space, Esc closes the inspector, focus rings).
+- **Tooling** — ruff (curated rule set) and mypy are clean across the
+  codebase and enforced in CI; fixed real findings (`share.py` missing
+  `Any` import, `replay.py` missing `Callable` import). pytest-cov wired
+  in. CI: lint + typecheck + test matrix (adds macOS and Python 3.13) +
+  a TypeScript job (tests + publish-shape check); release workflow builds
+  and publishes to PyPI via trusted publishing on `v*` tags.
+- **Community/meta** — SECURITY.md (incl. the recordings-contain-secrets
+  threat model), CODE_OF_CONDUCT.md, issue templates, PR checklist,
+  Dependabot, pre-commit config, README badges (CI/PyPI/license/ruff),
+  SPDX license expression, PyPI URLs; RELEASE.md rewritten as a generic
+  maintainer handbook.
+- Tests: Python 116 (was 107), TypeScript 10 (was 6).
+
 ## 0.5.0 — 2026-08-29
 
 - **Agent-level what-if** — `branch_agent(fn, run, mutations)`: re-run the

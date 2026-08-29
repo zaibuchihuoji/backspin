@@ -1,6 +1,6 @@
 import json
 
-from backspin import Recorder, load_run
+from backspin import Recorder
 from backspin.tui import (
     collect_runs,
     render_run_table,

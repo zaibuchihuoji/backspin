@@ -3,11 +3,11 @@ import pytest
 
 pytest.importorskip("openai")
 
-from openai import OpenAI  # noqa: E402
+from openai import APIStatusError, OpenAI
 
-from backspin import Cassette, Recorder, load_run  # noqa: E402
-from backspin.proxy import create_proxy_app  # noqa: E402
-from tests.mock_openai_server import start_uvicorn  # noqa: E402
+from backspin import Cassette, load_run
+from backspin.proxy import create_proxy_app
+from tests.mock_openai_server import start_uvicorn
 
 
 def make_proxy(tmp_path, upstream=None, cassette=None):
@@ -66,7 +66,7 @@ def test_proxy_record_error(tmp_path, mock_openai_origin):
     base, app = make_proxy(tmp_path, upstream=mock_openai_origin)
     client = make_client(base)
 
-    with pytest.raises(Exception):
+    with pytest.raises(APIStatusError):
         client.chat.completions.create(
             model="mock-gpt", messages=[{"role": "user", "content": "boom now"}]
         )
@@ -92,7 +92,7 @@ def test_proxy_replay_no_upstream(tmp_path, mock_openai_origin):
     assert replayed.choices[0].message.content == live.choices[0].message.content
 
     # exhausted cassette -> 503 with a clear error
-    with pytest.raises(Exception):
+    with pytest.raises(APIStatusError):
         make_client(replay_base).chat.completions.create(
             model="mock-gpt", messages=[{"role": "user", "content": "one too many"}]
         )
@@ -124,6 +124,26 @@ def test_proxy_requires_exactly_one_mode(tmp_path):
         create_proxy_app(runs_dir=str(tmp_path))
     with pytest.raises(ValueError):
         create_proxy_app(upstream="http://x", cassette=Cassette([]), runs_dir=str(tmp_path))
+
+
+def test_proxy_rejects_malformed_bodies(tmp_path):
+    """Non-object JSON (or garbage) must be a clean 400, not a 500."""
+    from fastapi.testclient import TestClient
+
+    from backspin.proxy import create_proxy_app
+
+    app = create_proxy_app(cassette=Cassette([]), runs_dir=str(tmp_path))
+    client = TestClient(app)
+    res = client.post(
+        "/v1/chat/completions", json=["not", "an", "object"]
+    )
+    assert res.status_code == 400
+    res = client.post(
+        "/v1/messages",
+        content=b"not json at all",
+        headers={"content-type": "application/json"},
+    )
+    assert res.status_code == 400
 
 
 def test_proxy_anthropic_record_and_replay(tmp_path, anthropic_origin):

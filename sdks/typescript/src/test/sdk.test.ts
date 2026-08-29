@@ -12,6 +12,8 @@ import {
   diffRuns,
   loadRun,
   fingerprintRequest,
+  redactStrings,
+  mask,
 } from "../index.js";
 
 function tmp(): string {
@@ -185,4 +187,72 @@ test("diffRuns finds the first divergence", async () => {
   const report = diffRuns(loadRun(recA.path), loadRun(recB.path));
   assert.equal(report.identical, false);
   assert.equal(report.firstDivergence, 1);
+});
+
+test("tool() awaits async functions and records the resolved value", async () => {
+  const dir = tmp();
+  const rec = new Recorder({ dir, agent: "ts-bot" });
+  const lookup = rec.tool("lookup", async (id: string) => {
+    await new Promise((r) => setTimeout(r, 15));
+    return `order-${id}`;
+  });
+  const result = await lookup("42");
+  assert.equal(result, "order-42");
+  rec.close();
+
+  const ev = loadRun(rec.path).events.find((e) => e.kind === "tool") as any;
+  assert.equal(ev.result, "order-42"); // resolved value, not {} from a Promise
+  assert.equal(ev.error, null);
+  assert.ok(ev.duration_ms >= 10, `duration should cover the await, got ${ev.duration_ms}`);
+});
+
+test("tool() records async rejections with the error", async () => {
+  const dir = tmp();
+  const rec = new Recorder({ dir, agent: "ts-bot" });
+  const boom = rec.tool("boom", async () => {
+    throw new Error("async tool failed");
+  });
+  await assert.rejects(() => boom());
+  rec.close();
+
+  const ev = loadRun(rec.path).events.find((e) => e.kind === "tool") as any;
+  assert.match(String(ev.error), /async tool failed/);
+  assert.equal(ev.result, null);
+});
+
+test("a stream abandoned mid-loop still gets recorded", async () => {
+  const dir = tmp();
+  const rec = new Recorder({ dir, agent: "ts-bot" });
+  const client = captureOpenAI(rec, fakeClient(["a streamed answer that is long"]));
+  const stream = await client.chat.completions.create({
+    model: "gpt-4o-mini", messages: MSGS, stream: true,
+  });
+  for await (const _chunk of stream) break; // consumer bails after one chunk
+  rec.close();
+
+  const ev = loadRun(rec.path).events.find((e) => e.kind === "llm") as any;
+  assert.ok(ev, "partial stream must still be recorded");
+  assert.equal((ev.response as any).reconstructed_from_stream, true);
+});
+
+test("redact keeps secrets out of recordings, structural fields readable", async () => {
+  const dir = tmp();
+  const rec = new Recorder({
+    dir,
+    agent: "ts-bot",
+    redact: redactStrings(mask(/sk-[A-Za-z0-9]{8,}/g)),
+  });
+  const client = captureOpenAI(rec, fakeClient(["answer"]));
+  await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: "my key is sk-abcdefgh12345678 ok?" }],
+  });
+  rec.close();
+
+  const raw = await (await import("node:fs/promises")).readFile(rec.path, "utf-8");
+  assert.ok(!raw.includes("sk-abcdefgh12345678"), "secret must not appear in the file");
+
+  const ev = loadRun(rec.path).events.find((e) => e.kind === "llm") as any;
+  assert.equal(ev.model, "gpt-4o-mini"); // structural field untouched
+  assert.ok(ev.fingerprint, "fingerprint untouched");
 });

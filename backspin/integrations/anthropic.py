@@ -14,7 +14,7 @@ from __future__ import annotations
 import functools
 import inspect
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ..runfile import jsonable
 
@@ -91,7 +91,8 @@ class _Acc:
                 block["text"] = block.get("text", "") + (delta.get("text") or "")
             elif delta.get("type") == "input_json_delta":
                 block["type"] = "tool_use"
-                block["partial_json"] = block.get("partial_json", "") + (delta.get("partial_json") or "")
+                prior = block.get("partial_json", "")
+                block["partial_json"] = prior + (delta.get("partial_json") or "")
         elif etype == "message_delta":
             stop = (data.get("delta") or {}).get("stop_reason")
             if stop:
@@ -233,12 +234,10 @@ class _StreamRecorder:
         return self
 
     def __exit__(self, *exc_info: Any):
-        try:
-            self._finalize()
-        finally:
-            exit_ = getattr(self._stream, "__exit__", None)
-            if exit_ is not None:
-                return exit_(*exc_info)
+        self._finalize()
+        exit_ = getattr(self._stream, "__exit__", None)
+        if exit_ is not None:
+            return exit_(*exc_info)
         return None
 
     def _finalize(self, error: Optional[BaseException] = None) -> None:

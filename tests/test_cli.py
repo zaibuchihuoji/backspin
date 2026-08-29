@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from backspin import Recorder, cli, load_run
 from backspin.fakes import message_data
 
@@ -52,3 +56,51 @@ def test_diff_exit_codes(tmp_path, capsys):
 def test_show_missing_file_fails(tmp_path, capsys):
     assert cli.main(["show", str(tmp_path / "nope.backspin.jsonl")]) == 2
     assert "error" in capsys.readouterr().err.lower()
+
+
+def test_branch(tmp_path, capsys):
+    path = make_run(tmp_path, ["x", "y"])
+    out_dir = tmp_path / "branches"
+    rc = cli.main(
+        ["branch", path, "--step", "0", "--content", "WHAT IF", "--dir", str(out_dir)]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "branch run:" in out
+
+    branch_path = next(
+        line.split(":", 1)[1].strip()
+        for line in out.splitlines() if line.startswith("branch run:")
+    )
+    run = load_run(branch_path)
+    assert run.metadata["branch_of"] is not None
+    assert run.llm_calls()[0]["response"]["choices"][0]["message"]["content"] == "WHAT IF"
+
+
+def test_branch_requires_a_mutation(tmp_path, capsys):
+    path = make_run(tmp_path, ["x"])
+    assert cli.main(["branch", path, "--step", "0"]) == 2
+    assert "nothing to mutate" in capsys.readouterr().out
+
+
+def test_export_pairs_and_sft(tmp_path, capsys):
+    path = make_run(tmp_path, ["q1", "q2"])
+
+    assert cli.main(["export", path, "--format", "pairs"]) == 0
+    lines = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert len(lines) == 2
+
+    out_file = tmp_path / "sft.jsonl"
+    assert cli.main(["export", path, "--format", "sft", "-o", str(out_file)]) == 0
+    assert out_file.exists() and out_file.stat().st_size > 0
+
+
+def test_share_writes_single_file_html(tmp_path, capsys):
+    pytest.importorskip("fastapi")  # share inlines the FastAPI-served viewer assets
+    path = make_run(tmp_path, ["x"])
+    out_file = tmp_path / "shared.html"
+    assert cli.main(["share", path, "-o", str(out_file)]) == 0
+    html = out_file.read_text(encoding="utf-8")
+    assert "backspin" in html
+    assert "__BACKSPIN_EMBED__" in html  # the run data is inlined
+    assert "sk-test" not in html  # sanity: nothing unexpected injected

@@ -23,7 +23,7 @@ def test_estimate_cost_math():
 def make_run(dir_path, models):
     rec = Recorder(dir=str(dir_path), agent="cost")
     with rec:
-        for i, model in enumerate(models):
+        for model in models:
             rec.record_llm(
                 request={"model": model, "messages": [{"role": "user", "content": "x"}]},
                 response=message_data("r"),

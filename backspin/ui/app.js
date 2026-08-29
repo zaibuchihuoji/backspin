@@ -12,11 +12,20 @@ const state = {
 };
 
 applyI18n();
-$("#btn-lang").addEventListener("click", () => {
-  const next = LANG === "zh" ? "en" : "zh";
+$("#btn-lang").textContent = LANG === "zh" ? "EN" : "中文";
+$("#btn-lang").addEventListener("click", () => setLang(LANG === "zh" ? "en" : "zh"));
+
+/** Switch language in place: re-render everything, no page reload. */
+function setLang(next) {
+  LANG = next;
   try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* ignore */ }
-  location.reload();
-});
+  $("#btn-lang").textContent = next === "zh" ? "EN" : "中文";
+  applyI18n();
+  loadRuns().then(() => {
+    if (state.diff) renderDiff();
+    else if (state.current) renderRun();
+  });
+}
 
 /* ---------- utilities ---------- */
 
@@ -61,14 +70,20 @@ async function loadRuns() {
   for (const r of state.runs) {
     const li = document.createElement("li");
     li.dataset.name = r.name;
+    li.setAttribute("role", "button");
+    li.setAttribute("tabindex", "0");
     const totals = r.totals || {};
     li.innerHTML = `
       <div class="name">${esc(r.name)}</div>
       <div class="meta">${esc(r.agent || "?")} · ${totals.steps ?? "?"} ${t("unit.steps")} · ${totals.total_tokens ?? "?"} tok · ${esc(fmtDate(r.created_at))}</div>`;
     li.addEventListener("click", () => selectRun(r.name));
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectRun(r.name); }
+    });
     ul.appendChild(li);
   }
   const diffSelect = $("#diff-select");
+  diffSelect.setAttribute("aria-label", t("tip.compare"));
   diffSelect.innerHTML =
     `<option value="">${esc(t("diff.pick"))}</option>` +
     state.runs.map((r) => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join("");
@@ -108,15 +123,15 @@ function renderRun() {
 
   $("#summary").hidden = false;
   const cards = [
-    card("card.agent", esc(run.agent || "?")),
+    card("card.agent", run.agent || "?"),
     card("card.steps", totals.steps),
     card("card.llm", totals.llm_calls),
     card("card.tools", totals.tool_calls),
-    card("card.tokens", `${totals.prompt_tokens ?? 0}<small>${t("unit.in")}</small> + ${totals.completion_tokens ?? 0}<small>${t("unit.out")}</small>`),
+    card("card.tokens", `${totals.prompt_tokens ?? 0}<small>${t("unit.in")}</small> + ${totals.completion_tokens ?? 0}<small>${t("unit.out")}</small>`, true),
     card("card.duration", fmtMs(totals.duration_ms || 0)),
   ];
   if (totals.cost_usd != null && totals.cost_usd > 0) {
-    cards.push(card("card.cost", `$${totals.cost_usd.toFixed(4)}` + (totals.cost_complete ? "" : "<small>+ partial</small>")));
+    cards.push(card("card.cost", `$${totals.cost_usd.toFixed(4)}` + (totals.cost_complete ? "" : "<small>+ partial</small>"), true));
   }
   $("#summary").innerHTML = cards.join("");
 
@@ -125,8 +140,10 @@ function renderRun() {
   renderWaterfall(run.events);
 }
 
-function card(key, v) {
-  return `<div class="card"><div class="k">${esc(t(key))}</div><div class="v">${v}</div></div>`;
+/** Values are HTML-escaped unless the caller passes trusted markup with
+ *  rawHtml=true — run data must never reach innerHTML unescaped. */
+function card(key, v, rawHtml = false) {
+  return `<div class="card"><div class="k">${esc(t(key))}</div><div class="v">${rawHtml ? v : esc(v)}</div></div>`;
 }
 
 function renderWaterfall(events) {
@@ -150,6 +167,8 @@ function renderWaterfall(events) {
       : kind;
     const pct = Math.max(1.5, ((ev.duration_ms || 0) / maxDur) * 100);
     const usage = ev.usage || {};
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
     row.innerHTML = `
       <span class="seq">#${ev.seq}</span>
       <span class="lbl" title="${esc(label)}">${esc(label)}</span>
@@ -158,6 +177,9 @@ function renderWaterfall(events) {
       <span class="tok">${usage.prompt_tokens != null ? usage.prompt_tokens + "+" + usage.completion_tokens : ""}</span>`;
     row.style.marginLeft = (ev.depth || 0) * 16 + "px";
     row.addEventListener("click", () => selectStep(ev));
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectStep(ev); }
+    });
     wf.appendChild(row);
   }
 }
@@ -191,6 +213,7 @@ function selectStep(ev) {
     btn.style.display = tb === "raw" || tabs.includes(tb) ? "" : "none";
     if (tb !== "raw" && !tabs.includes(tb) && state.tab === tb) state.tab = "raw";
     btn.classList.toggle("active", tb === state.tab);
+    btn.setAttribute("aria-selected", tb === state.tab ? "true" : "false");
   });
   renderInspectorBody(ev);
 }
@@ -258,8 +281,8 @@ async function renderDiff() {
     <thead><tr><th>#</th><th>${esc(t("diff.kind"))}</th><th>${esc(a)}</th><th>${esc(b)}</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td></td><td></td>
-      <td>${ta.total_tokens} tok · ${fmtMs(ta.duration_ms)}</td>
-      <td>${tb.total_tokens} tok · ${fmtMs(tb.duration_ms)}</td>
+      <td>${esc(ta.total_tokens + " tok · " + fmtMs(ta.duration_ms))}</td>
+      <td>${esc(tb.total_tokens + " tok · " + fmtMs(tb.duration_ms))}</td>
       <td></td></tr></tfoot>`;
 }
 
@@ -283,11 +306,16 @@ $("#diff-select").addEventListener("change", (e) => {
 });
 $("#btn-close-diff").addEventListener("click", closeDiff);
 $("#insp-close").addEventListener("click", hideInspector);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#inspector").hidden) hideInspector();
+});
 document.querySelectorAll("#insp-tabs .tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     state.tab = btn.dataset.tab;
-    document.querySelectorAll("#insp-tabs .tab").forEach((b) =>
-      b.classList.toggle("active", b === btn));
+    document.querySelectorAll("#insp-tabs .tab").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+      b.setAttribute("aria-selected", b === btn ? "true" : "false");
+    });
     if (state.current) {
       const seq = state.selectedSeq;
       const ev = (state.current.events || []).find((e) => e.seq === seq);

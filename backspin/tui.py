@@ -54,10 +54,10 @@ def _step_line(ev: Dict[str, Any]) -> str:
         usage = ev.get("usage") or {}
         tok = f"tok {usage.get('prompt_tokens', 0)}+{usage.get('completion_tokens', 0)}"
         err = "  ERR " + str(ev["error"]) if ev.get("error") else ""
-        return f"{indent}#{seq:<3} llm   {str(ev.get('model') or '?'):<20} {dur:>8}  {tok}{err}"
+        return f"{indent}#{seq:<3} llm   {ev.get('model') or '?'!s:<20} {dur:>8}  {tok}{err}"
     if kind == "tool":
         err = "  ERR " + str(ev["error"]) if ev.get("error") else ""
-        return f"{indent}#{seq:<3} tool  {str(ev.get('name') or '?'):<20} {dur:>8}{err}"
+        return f"{indent}#{seq:<3} tool  {ev.get('name') or '?'!s:<20} {dur:>8}{err}"
     if kind == "span":
         phase = "enter" if ev.get("phase") == "enter" else "exit"
         err = "  ERR " + str(ev["error"]) if ev.get("error") else ""
@@ -84,7 +84,8 @@ def render_step(ev: Dict[str, Any], max_lines: int = 40) -> str:
     body = json.dumps(ev, ensure_ascii=False, indent=2, default=str)
     lines = body.splitlines()
     if len(lines) > max_lines:
-        lines = lines[:max_lines] + [f"... ({len(lines) - max_lines} more lines, see the file)"]
+        note = f"... ({len(lines) - max_lines} more lines, see the file)"
+        lines = [*lines[:max_lines], note]
     return "\n".join(lines)
 
 

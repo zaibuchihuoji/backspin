@@ -14,6 +14,9 @@ const STRINGS = {
   "logo.sub":        { zh: "· agent 飞行记录仪", en: "· agent flight recorder" },
   "btn.compare":     { zh: "对比…",             en: "Compare with…" },
   "btn.closeDiff":   { zh: "关闭对比",           en: "Close diff" },
+  "tip.compare":     { zh: "与另一次运行对比",    en: "Compare with another run" },
+  "tip.close":       { zh: "关闭",               en: "Close" },
+  "tip.lang":        { zh: "切换语言 / switch language", en: "切换语言 / switch language" },
   "side.runs":       { zh: "运行记录",           en: "Runs" },
   "side.timeline":   { zh: "时间线",             en: "Timeline" },
   "side.diff":       { zh: "对比",               en: "Diff" },
@@ -62,7 +65,11 @@ function t(key, vars) {
 }
 
 function applyI18n() {
+  document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.setAttribute("title", t(el.getAttribute("data-i18n-title")));
   });
 }

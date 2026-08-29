@@ -1,0 +1,60 @@
+name: Release
+
+# Push a tag `vX.Y.Z` to publish. PyPI uses trusted publishing (no token):
+# configure the "backspin" project on pypi.org once —
+# Settings > Publishing > add GitHub publisher (repo: backspin-dev/backspin,
+# workflow: release.yml, environment: pypi).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  id-token: write  # PyPI trusted publishing (OIDC)
+
+jobs:
+  build-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]" build
+      - run: ruff check backspin/ tests/
+      - run: mypy backspin/
+      - run: pytest -q
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    needs: build-python
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  build-typescript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - working-directory: sdks/typescript
+        run: |
+          npm ci
+          npm test
+          npm run build
+      # npm publish stays manual until an NPM_TOKEN secret is configured:
+      #   npm publish --access public   (from sdks/typescript, on the tag)

@@ -19,7 +19,10 @@ def record_original(dir_path) -> str:
         r1 = client.chat.completions.create(model="m", messages=MSGS_A)
         client.chat.completions.create(
             model="m",
-            messages=MSGS_A + [{"role": "assistant", "content": r1.choices[0].message.content}],
+            messages=[
+                *MSGS_A,
+                {"role": "assistant", "content": r1.choices[0].message.content},
+            ],
         )
     return rec.path
 
@@ -45,7 +48,8 @@ def test_mutate_tool_arguments(tmp_path):
     mutated = Cassette.from_run(load_run(rec.path)).mutate(
         0, tool_arguments={"city": "Rome"}
     )
-    args = mutated.entries[0]["response"]["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"]
+    entry = mutated.entries[0]["response"]["choices"][0]["message"]
+    args = entry["tool_calls"][0]["function"]["arguments"]
     assert json.loads(args) == {"city": "Rome"}
 
 
@@ -85,7 +89,8 @@ def test_branch_records_mutated_replay(tmp_path):
     assert second_request_messages[-1]["content"] == "Rome it is."
 
     # the original file is untouched
-    assert load_run(original_path).llm_calls()[0]["response"]["choices"][0]["message"]["content"] == REPLY_1
+    original_reply = load_run(original_path).llm_calls()[0]["response"]["choices"][0]
+    assert original_reply["message"]["content"] == REPLY_1
 
 
 def test_branch_diff_llm_only_finds_divergence(tmp_path):

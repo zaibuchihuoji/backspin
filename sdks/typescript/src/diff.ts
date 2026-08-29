@@ -1,7 +1,7 @@
 /**
  * diffRuns: align two runs step by step and find the first divergence.
  */
-import { Run, loadRun } from "./runfile.js";
+import { Run, canonicalJson, loadRun } from "./runfile.js";
 
 export interface StepDiff {
   index: number;
@@ -42,7 +42,11 @@ function label(e: Record<string, unknown>): string {
 }
 
 function signature(e: Record<string, unknown>): string {
-  if (e.kind === "llm") return "llm:" + String(e.fingerprint ?? e.request);
+  if (e.kind === "llm") {
+    if (e.fingerprint) return "llm:" + e.fingerprint;
+    const req = (e.request ?? {}) as Record<string, unknown>;
+    return "llm:" + canonicalJson({ model: req["model"], messages: req["messages"] });
+  }
   if (e.kind === "tool") return "tool:" + String(e.name);
   if (e.kind === "span") return `span:${e.phase}:${e.name}`;
   return `${e.kind}:${e.message ?? ""}`;

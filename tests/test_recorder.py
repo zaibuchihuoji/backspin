@@ -5,6 +5,19 @@ import pytest
 from backspin import Recorder, load_run
 
 
+class _BrokenFP:
+    """Stand-in for a run file that can no longer be written (disk full)."""
+
+    def write(self, s):
+        raise OSError("simulated disk full")
+
+    def flush(self):
+        raise OSError("simulated disk full")
+
+    def close(self):
+        pass
+
+
 def test_log_llm_tool(tmp_path):
     rec = Recorder(dir=str(tmp_path), agent="bot")
     with rec:
@@ -36,9 +49,8 @@ def test_log_llm_tool(tmp_path):
 
 
 def test_error_recorded_and_reraised(tmp_path):
-    with pytest.raises(RuntimeError):
-        with Recorder(dir=str(tmp_path), agent="bot") as rec:
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError), Recorder(dir=str(tmp_path), agent="bot") as rec:
+        raise RuntimeError("boom")
     run = load_run(rec.path)
     ev = run.events[-1]
     assert ev["kind"] == "error"
@@ -88,3 +100,32 @@ def test_base_dir_confinement(tmp_path):
     Recorder(dir=str(inside), agent="x").close()
     with pytest.raises(ValueError):
         Recorder(dir=str(tmp_path / "outside"), base_dir=str(inside))
+
+
+def test_write_failure_never_crashes_the_agent(tmp_path):
+    """CONTRIBUTING ground rule: a recorder must never crash the agent.
+    When the run file becomes unwritable, recording stops with one warning
+    and instrumented code keeps running."""
+    rec = Recorder(dir=str(tmp_path), agent="bot")
+    rec.log("before the break")
+    rec._fp = _BrokenFP()
+
+    with pytest.warns(RuntimeWarning, match="stopping recording"):
+        rec.log("this write fails")
+    # the agent-side call did NOT raise, and further recording is a no-op
+    rec.log("silently dropped")
+    rec.record_llm(request={"model": "m"}, response={"ok": True})
+    rec.close()
+
+    run = load_run(rec.path)
+    assert [e["message"] for e in run.events if e["kind"] == "log"] == [
+        "before the break"
+    ]
+
+
+def test_writing_after_close_is_a_noop(tmp_path):
+    rec = Recorder(dir=str(tmp_path), agent="bot")
+    with rec:
+        rec.log("kept")
+    rec.log("dropped: recorder already closed")
+    assert len(load_run(rec.path).events) == 1

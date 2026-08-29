@@ -255,12 +255,10 @@ class _StreamRecorder:
         return self
 
     def __exit__(self, *exc_info: Any):
-        try:
-            self._finalize()
-        finally:
-            exit_ = getattr(self._stream, "__exit__", None)
-            if exit_ is not None:
-                return exit_(*exc_info)
+        self._finalize()
+        exit_ = getattr(self._stream, "__exit__", None)
+        if exit_ is not None:
+            return exit_(*exc_info)
         return None
 
     def _finalize(self, error: Optional[BaseException] = None) -> None:

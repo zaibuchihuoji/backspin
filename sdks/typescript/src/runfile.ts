@@ -11,6 +11,8 @@ import { join } from "node:path";
 
 export const FILE_SUFFIX = ".backspin.jsonl";
 export const SCHEMA_VERSION = 1;
+/** Keep in sync with package.json (see RELEASE.md). */
+export const VERSION = "0.5.1";
 
 export type EventKind = "llm" | "tool" | "log" | "error" | "span" | string;
 
@@ -95,7 +97,7 @@ export class RunWriter {
       run_id: this.runId,
       agent,
       created_at: Date.now() / 1000,
-      backspin_version: "0.4.0-ts",
+      backspin_version: VERSION + "-ts",
       metadata: metadata ?? {},
     });
   }

@@ -16,7 +16,7 @@ import json
 import warnings
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .fakes import FakeResponse, stream_chunks
 from .recorder import Recorder
@@ -195,12 +195,13 @@ def patch_openai(cassette: Cassette):
     saved = (openai.OpenAI, openai.AsyncOpenAI)
     sync_client = stub_client(cassette)
     async_client = stub_client(cassette, async_mode=True)
-    openai.OpenAI = lambda *a, **k: sync_client
-    openai.AsyncOpenAI = lambda *a, **k: async_client
+    # monkeypatching the constructors is the whole point of this helper
+    openai.OpenAI = lambda *a, **k: sync_client  # type: ignore[assignment,misc]
+    openai.AsyncOpenAI = lambda *a, **k: async_client  # type: ignore[assignment,misc]
     try:
         yield SimpleNamespace(sync=sync_client, async_=async_client)
     finally:
-        openai.OpenAI, openai.AsyncOpenAI = saved
+        openai.OpenAI, openai.AsyncOpenAI = saved  # type: ignore[misc]
 
 
 def branch(
@@ -238,7 +239,10 @@ def branch(
             raise IndexError(
                 f"mutation step {index} out of range (run has {len(calls)} LLM calls)"
             )
-        before = (calls[index].get("response") or {}).get("choices", [{}])[0].get("message", {}).get("content")
+        before = (
+            (calls[index].get("response") or {})
+            .get("choices", [{}])[0].get("message", {}).get("content")
+        )
         cassette = cassette.mutate(index, **mutations[index])
         after = (cassette.entries[index]["response"]["choices"][0]["message"].get("content"))
         if before is not None and after != before:

@@ -10,11 +10,14 @@ cd backspin
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 pytest
+ruff check backspin/ tests/   # must be clean
+mypy backspin/                # must be clean
 ```
 
 `pytest` runs the full suite, including the real-SDK integration tests
 (they talk to a local OpenAI-compatible mock server — no network, no API
-key needed).
+key needed). `pip install pre-commit && pre-commit install` wires the same
+lint into your commits.
 
 ## Ground rules
 
@@ -39,6 +42,6 @@ key needed).
 ## Submitting
 
 1. Branch from `main`.
-2. `pytest` green, including the integration and performance suites.
+2. `pytest` green, `ruff check` and `mypy` clean — CI enforces all three.
 3. Update `CHANGELOG.md` under an "Unreleased" heading.
-4. Open a PR describing the user-visible change.
+4. Open a PR describing the user-visible change (the template has the checklist).

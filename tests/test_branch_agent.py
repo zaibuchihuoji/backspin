@@ -18,12 +18,17 @@ def run_agent(client, rec):
     r1 = client.chat.completions.create(model="m", messages=MSGS)
     rec.log("r1: " + r1.choices[0].message.content)
     r2 = client.chat.completions.create(
-        model="m", messages=MSGS + [{"role": "assistant", "content": r1.choices[0].message.content}]
+        model="m",
+        messages=[
+            *MSGS,
+            {"role": "assistant", "content": r1.choices[0].message.content},
+        ],
     )
     rec.log("r2: " + r2.choices[0].message.content)
     r3 = client.chat.completions.create(
         model="m",
-        messages=MSGS + [
+        messages=[
+            *MSGS,
             {"role": "assistant", "content": r2.choices[0].message.content},
             {"role": "user", "content": "summarize"},
         ],

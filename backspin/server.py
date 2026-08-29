@@ -39,6 +39,8 @@ def _safe_run_path(root: Path, name: str) -> Path:
     path = Path(os.path.realpath(root / name))
     if os.path.dirname(str(path)) != str(root):
         raise HTTPException(status_code=404, detail="no such run")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="no such run")
     return path
 
 
@@ -64,7 +66,7 @@ def create_app(runs_dir: str = "runs") -> FastAPI:
         try:
             run = load_run(str(path))
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         data = run.summary()
         data["events"] = run.events
         return data

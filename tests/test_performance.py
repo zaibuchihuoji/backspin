@@ -3,7 +3,6 @@ import time
 
 from backspin import Recorder, diff_runs, load_run
 from backspin.fakes import message_data
-from backspin.runfile import fingerprint_request
 
 
 def test_large_run_record_and_load(tmp_path):

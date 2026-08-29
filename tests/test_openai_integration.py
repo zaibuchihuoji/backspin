@@ -12,9 +12,9 @@ import pytest
 
 pytest.importorskip("openai")
 
-from openai import AsyncOpenAI, OpenAI  # noqa: E402
+from openai import APIStatusError, AsyncOpenAI, OpenAI
 
-from backspin import Cassette, Recorder, load_run, stub_client  # noqa: E402
+from backspin import Cassette, Recorder, load_run, stub_client
 
 TOOLS = [
     {
@@ -139,7 +139,8 @@ def test_real_tool_call_streaming(tmp_path, openai_base_url):
     assert msg["tool_calls"][0]["function"]["name"] == "get_weather"
     # argument deltas must be concatenated in order
     assert json.loads(msg["tool_calls"][0]["function"]["arguments"]) == {"city": "Paris"}
-    assert load_run(rec.path).llm_calls()[0]["response"]["choices"][0]["finish_reason"] == "tool_calls"
+    finish = load_run(rec.path).llm_calls()[0]["response"]["choices"][0]["finish_reason"]
+    assert finish == "tool_calls"
 
 
 def test_real_async_capture(tmp_path, openai_base_url):
@@ -176,7 +177,7 @@ def test_real_error_capture(tmp_path, openai_base_url):
     rec = Recorder(dir=str(tmp_path), agent="it")
     with rec:
         client = rec.capture_openai(make_client(openai_base_url))
-        with pytest.raises(Exception):
+        with pytest.raises(APIStatusError):
             client.chat.completions.create(
                 model="mock-gpt",
                 messages=[{"role": "user", "content": "boom please"}],

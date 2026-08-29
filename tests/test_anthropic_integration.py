@@ -7,11 +7,11 @@ import pytest
 
 pytest.importorskip("anthropic")
 
-import anthropic  # noqa: E402
+import anthropic
 
-from backspin import Recorder, load_run  # noqa: E402
-from backspin.cost import cost_report  # noqa: E402
-from backspin.testing import FakeAnthropic  # noqa: E402
+from backspin import Recorder, load_run
+from backspin.cost import cost_report
+from backspin.testing import FakeAnthropic
 
 
 def make_client(origin: str) -> anthropic.Anthropic:
@@ -80,7 +80,9 @@ def test_anthropic_tool_use_capture(tmp_path, anthropic_origin):
             messages=[{"role": "user", "content": "weather in town?"}],
         )
 
-    tool_block = [b for b in msg.content if getattr(b, "type", None) == "tool_use"][0]
+    tool_block = next(
+        b for b in msg.content if getattr(b, "type", None) == "tool_use"
+    )
     assert tool_block.name == "get_weather"
     assert tool_block.input == {"city": "Paris"}
 
@@ -117,7 +119,7 @@ def test_anthropic_error_capture(tmp_path, anthropic_origin):
     rec = Recorder(dir=str(tmp_path), agent="an")
     with rec:
         client = rec.capture_anthropic(make_client(anthropic_origin))
-        with pytest.raises(Exception):
+        with pytest.raises(anthropic.APIStatusError):
             client.messages.create(
                 model="claude-sonnet-4", max_tokens=10,
                 messages=[{"role": "user", "content": "boom please"}],
@@ -143,7 +145,6 @@ def test_anthropic_cost_computed(tmp_path, anthropic_origin):
 
 
 def test_fake_anthropic_capture(tmp_path):
-    from backspin.testing import FakeAnthropic
 
     rec = Recorder(dir=str(tmp_path), agent="fake")
     with rec:

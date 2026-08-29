@@ -18,9 +18,8 @@ def test_backspin_fixture_records_and_asserts(backspin):
 
 
 def test_backspin_fixture_detects_tampered_run(backspin):
-    from pathlib import Path
-
     import json
+    from pathlib import Path
 
     with backspin.record(agent="plugin-test") as rec:
         client = rec.capture_openai(FakeOpenAI(["a1"]))

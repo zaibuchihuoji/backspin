@@ -1,5 +1,11 @@
 # backspin
 
+[![CI](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml/badge.svg)](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/backspin)](https://pypi.org/project/backspin/)
+[![Python](https://img.shields.io/pypi/pyversions/backspin)](https://pypi.org/project/backspin/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 **AI Agent 的飞行记录仪。** 把一次 agent 运行中的每一次 LLM 调用、每一次工具调用,录制进一个可移植的文件;离线确定性回放这次运行;对比两次运行,精确定位行为开始分岔的那一步。100% 本地,核心零依赖。
 
 *可以理解为 agent 版的 [rr](https://rr-project.org/)(Mozilla 的录制回放调试器)。*
@@ -232,9 +238,13 @@ backspin 还很年轻(v0.5)——录制 → 回放 → what-if(请求级 + agent
 
 ```bash
 pip install -e ".[dev]"
-pytest
+pytest                      # 全量测试,含真实 SDK 集成测试
+ruff check backspin/ tests/ # lint
+mypy backspin/              # 类型检查
 python examples/mock_agent.py   # 零依赖演示:录制 → 回放 → 对比
 ```
+
+基本规则见 [CONTRIBUTING.md](CONTRIBUTING.md);漏洞报告方式见 [SECURITY.md](SECURITY.md)。
 
 ## 许可证
 

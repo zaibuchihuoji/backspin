@@ -7,6 +7,7 @@
  */
 export * from "./runfile.js";
 export * from "./recorder.js";
+export * from "./redaction.js";
 export * from "./capture.js";
 export * from "./replay.js";
 export * from "./diff.js";

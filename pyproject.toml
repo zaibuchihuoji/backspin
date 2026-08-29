@@ -4,11 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backspin"
-version = "0.5.0"
+version = "0.5.1"
 description = "The flight recorder for AI agents — record, replay, diff and debug agent runs, 100% local."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "backspin contributors" }]
 keywords = [
   "llm",
@@ -29,6 +30,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Debuggers",
   "Topic :: Software Development :: Testing",
 ]
@@ -38,7 +40,17 @@ dependencies = []
 ui = ["fastapi>=0.100", "uvicorn>=0.23"]
 proxy = ["fastapi>=0.100", "uvicorn>=0.23", "httpx>=0.24"]
 anthropic = ["anthropic>=1.0"]
-dev = ["pytest>=7", "httpx>=0.24", "fastapi>=0.100", "uvicorn>=0.23", "openai>=1.30", "anthropic>=1.0"]
+dev = [
+  "pytest>=7",
+  "pytest-cov>=4",
+  "httpx>=0.24",
+  "fastapi>=0.100",
+  "uvicorn>=0.23",
+  "openai>=1.30",
+  "anthropic>=1.0",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
 
 [project.scripts]
 backspin = "backspin.cli:main"
@@ -48,10 +60,63 @@ backspin = "backspin.pytest_plugin"
 
 [project.urls]
 Homepage = "https://github.com/backspin-dev/backspin"
+Repository = "https://github.com/backspin-dev/backspin"
 Issues = "https://github.com/backspin-dev/backspin/issues"
+Changelog = "https://github.com/backspin-dev/backspin/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backspin"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # import order
+  "B",   # flake8-bugbear (real bugs)
+  "UP",  # pyupgrade
+  "SIM", # flake8-simplify
+  "C4",  # flake8-comprehensions
+  "RUF", # ruff-specific
+]
+ignore = [
+  # The codebase deliberately uses typing.Dict/List/Optional to stay
+  # readable on Python 3.9 (see CONTRIBUTING); don't churn it to PEP 604.
+  "UP006", "UP007", "UP035", "UP037", "UP045",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# A recorder must never crash the agent it watches: broad excepts are the
+# mechanism, not an accident (see CONTRIBUTING ground rules).
+"backspin/recorder.py" = ["BLE001"]
+"backspin/runfile.py" = ["BLE001"]
+
+[tool.mypy]
+strict_equality = true
+warn_unused_ignores = true
+# The public surface is typed; internals use pragmatic Any payloads
+# (recorded LLM traffic is arbitrary JSON by nature).
+allow_redefinition = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["backspin"]
+
+[tool.coverage.report]
+# guard against regressions; raise as the suite grows (baseline: 75%)
+fail_under = 70
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

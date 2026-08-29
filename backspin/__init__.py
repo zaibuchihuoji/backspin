@@ -17,22 +17,22 @@ from .replay import (
 )
 from .runfile import FILE_SUFFIX, Run, load_run
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 __all__ = [
-    "Recorder",
-    "Run",
-    "load_run",
     "FILE_SUFFIX",
     "Cassette",
-    "stub_client",
-    "patch_openai",
-    "branch",
-    "branch_agent",
+    "DiffReport",
+    "Recorder",
     "ReplayMismatch",
     "ReplayMismatchWarning",
-    "diff_runs",
-    "DiffReport",
+    "Run",
     "StepDiff",
     "__version__",
+    "branch",
+    "branch_agent",
+    "diff_runs",
+    "load_run",
+    "patch_openai",
+    "stub_client",
 ]

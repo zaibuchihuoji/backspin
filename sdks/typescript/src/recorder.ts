@@ -4,12 +4,15 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
+import { STRUCTURAL_FIELDS, Transform } from "./redaction.js";
 import { RunWriter, fingerprintRequest } from "./runfile.js";
 
 export interface RecorderOptions {
   dir?: string;
   agent?: string;
   metadata?: Record<string, unknown>;
+  /** Transform applied to every payload value before it touches disk. */
+  redact?: Transform;
 }
 
 export interface LLMRecord {
@@ -34,9 +37,11 @@ export class Recorder {
   readonly writer: RunWriter;
   readonly path: string;
   readonly runId: string;
+  private readonly redact?: Transform;
 
   constructor(options: RecorderOptions = {}) {
     const dir = options.dir ?? "runs";
+    this.redact = options.redact;
     this.writer = new RunWriter(dir, options.agent ?? "agent", options.metadata);
     this.path = this.writer.path;
     this.runId = this.writer.runId;
@@ -45,9 +50,16 @@ export class Recorder {
   private emit(kind: string, payload: Record<string, unknown> = {}): void {
     const stack = spanStack.getStore() ?? [];
     const ev: Record<string, unknown> = { kind, ts: Date.now() / 1000, ...payload };
+    if (this.redact) {
+      for (const key of Object.keys(ev)) {
+        // structural fields stay in clear: viewer, differ and replay
+        // matching depend on them (same rule as the Python Recorder)
+        if (!STRUCTURAL_FIELDS.has(key)) ev[key] = this.redact(ev[key]);
+      }
+    }
     if (stack.length) {
-      // span events carry their own ids/depths; regular events inherit the
-      // innermost open span
+      // span events carry their own ids/depths; regular events inherit
+      // the innermost open span
       if (ev.spanId === undefined) ev.spanId = stack[stack.length - 1].id;
       if (ev.depth === undefined) ev.depth = stack.length;
     }
@@ -85,12 +97,26 @@ export class Recorder {
     });
   }
 
-  /** Wrap any function so calls are recorded as tool steps. */
+  /** Wrap any function so calls are recorded as tool steps. Sync and
+   *  async: a returned Promise is awaited, so the resolved value (not the
+   *  Promise) is recorded with the real duration. */
   tool<T extends (...args: never[]) => unknown>(name: string, fn: T): T {
     const wrapped = (...args: never[]): unknown => {
       const t0 = performance.now();
       try {
         const result = fn(...args);
+        if (result != null && typeof (result as Promise<unknown>).then === "function") {
+          return (result as Promise<unknown>).then(
+            (v) => {
+              this.recordTool(name, v, performance.now() - t0);
+              return v;
+            },
+            (err) => {
+              this.recordTool(name, null, performance.now() - t0, String(err));
+              throw err;
+            },
+          );
+        }
         this.recordTool(name, result, performance.now() - t0);
         return result;
       } catch (err) {

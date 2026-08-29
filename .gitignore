@@ -13,4 +13,7 @@ runs/
 *.backspin.jsonl
 node_modules/
 sdks/typescript/dist/
+.coverage
+coverage.xml
+.mimosa/
 .DS_Store

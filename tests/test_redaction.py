@@ -24,7 +24,8 @@ def test_mask_strings_across_event_types(tmp_path):
             duration_ms=1.0,
         )
 
-    raw = open(rec.path, encoding="utf-8").read()
+    with open(rec.path, encoding="utf-8") as f:
+        raw = f.read()
     assert "sk-abcdef123456" not in raw
     assert "sk-zzzz99998888" not in raw
     assert "[redacted]" in raw
@@ -76,3 +77,34 @@ def test_custom_redactor_and_default(tmp_path):
     assert events[1]["args"]["n"] == 5  # non-strings untouched
     assert events[1]["result"] == "<str>"
     assert events[1]["name"] == "t"  # structural fields preserved
+
+
+def test_secrets_in_errors_and_tracebacks_are_redacted(tmp_path):
+    """An exception carrying a secret must not leak it into the run file —
+    error messages, llm error fields and tracebacks all pass the redactor."""
+    rec = Recorder(
+        dir=str(tmp_path),
+        agent="sec",
+        redact=redact_strings(mask(r"sk-[A-Za-z0-9]{8,}")),
+    )
+    with rec:
+        try:
+            raise RuntimeError("auth failed for key sk-err11112222")
+        except RuntimeError as exc:
+            rec.record_error(exc)
+        rec.record_llm(
+            request={"model": "m", "messages": [{"role": "user", "content": "hi"}]},
+            error=RuntimeError("upstream rejected sk-llm33334444"),
+        )
+
+    with open(rec.path, encoding="utf-8") as f:
+        raw = f.read()
+    assert "sk-err11112222" not in raw
+    assert "sk-llm33334444" not in raw
+    events = load_run(rec.path).events
+    assert events[0]["kind"] == "error"
+    assert "[redacted]" in events[0]["message"]
+    assert "[redacted]" in events[0]["traceback"]
+    assert "[redacted]" in events[1]["error"]
+    # structural field survives
+    assert events[0]["error_type"] == "RuntimeError"

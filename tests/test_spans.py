@@ -24,12 +24,12 @@ def test_nested_spans(tmp_path):
     assert enters[0]["depth"] == 0 and enters[0].get("parent") is None
     assert enters[1]["depth"] == 1 and enters[1]["parent"] == enters[0]["span_id"]
     # events inside a span carry its id and depth
-    inside = [e for e in events if e.get("message") == "inside loop"][0]
+    inside = next(e for e in events if e.get("message") == "inside loop")
     assert inside["span_id"] == enters[0]["span_id"] and inside["depth"] == 1
-    tool = [e for e in events if e["kind"] == "tool"][0]
+    tool = next(e for e in events if e["kind"] == "tool")
     assert tool["depth"] == 2 and tool["span_id"] == enters[1]["span_id"]
     # events after the span are back at depth 0
-    after = [e for e in events if e.get("message") == "after"][0]
+    after = next(e for e in events if e.get("message") == "after")
     assert "span_id" not in after and "depth" not in after
     # exit events carry duration
     exits = [e for e in spans if e["phase"] == "exit"]
@@ -38,10 +38,8 @@ def test_nested_spans(tmp_path):
 
 def test_span_error_recorded_and_reraised(tmp_path):
     rec = Recorder(dir=str(tmp_path), agent="bot")
-    with pytest.raises(ValueError):
-        with rec:
-            with rec.span("doomed"):
-                raise ValueError("inside span")
+    with pytest.raises(ValueError), rec, rec.span("doomed"):
+        raise ValueError("inside span")
     spans = [e for e in load_run(rec.path).events if e["kind"] == "span"]
     exits = [e for e in spans if e["phase"] == "exit"]
     assert len(exits) == 1
@@ -80,14 +78,13 @@ def test_spans_do_not_inflate_duration_totals(tmp_path):
     import time
 
     rec = Recorder(dir=str(tmp_path), agent="bot")
-    with rec:
-        with rec.span("outer"):
-            time.sleep(0.02)
-            rec.record_llm(
-                request={"model": "m", "messages": [{"role": "user", "content": "x"}]},
-                duration_ms=100.0,
-                usage={"prompt_tokens": 1, "completion_tokens": 1},
-            )
+    with rec, rec.span("outer"):
+        time.sleep(0.02)
+        rec.record_llm(
+            request={"model": "m", "messages": [{"role": "user", "content": "x"}]},
+            duration_ms=100.0,
+            usage={"prompt_tokens": 1, "completion_tokens": 1},
+        )
     t = load_run(rec.path).totals()
     # span duration excluded: only the LLM call's 100ms counts
     assert t["duration_ms"] == 100.0
@@ -95,8 +92,7 @@ def test_spans_do_not_inflate_duration_totals(tmp_path):
 
 def test_span_meta_recorded(tmp_path):
     rec = Recorder(dir=str(tmp_path), agent="bot")
-    with rec:
-        with rec.span("tool", meta={"attempt": 2}):
-            pass
-    enter = [e for e in load_run(rec.path).events if e["kind"] == "span"][0]
+    with rec, rec.span("tool", meta={"attempt": 2}):
+        pass
+    enter = next(e for e in load_run(rec.path).events if e["kind"] == "span")
     assert enter["meta"] == {"attempt": 2}

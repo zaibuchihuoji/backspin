@@ -5,9 +5,9 @@ from backspin.fakes import message_data
 
 pytest.importorskip("fastapi")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from backspin.server import create_app  # noqa: E402
+from backspin.server import create_app
 
 
 def make_run(dir_path, agent="srv-bot", prompts=("x", "y")):
@@ -72,3 +72,11 @@ def test_corrupt_run_returns_422(client, tmp_path):
     )
     res = client.get("/api/run/corrupt.backspin.jsonl")
     assert res.status_code == 422
+
+
+def test_well_formed_but_missing_run_returns_404(client):
+    # a syntactically valid name that does not exist must be a clean 404,
+    # not an unhandled FileNotFoundError (500)
+    assert client.get("/api/run/ghost.backspin.jsonl").status_code == 404
+    res = client.get("/api/diff?a=ghost.backspin.jsonl&b=ghost2.backspin.jsonl")
+    assert res.status_code == 404

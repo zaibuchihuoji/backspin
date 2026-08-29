@@ -1,5 +1,11 @@
 # backspin
 
+[![CI](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml/badge.svg)](https://github.com/backspin-dev/backspin/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/backspin)](https://pypi.org/project/backspin/)
+[![Python](https://img.shields.io/pypi/pyversions/backspin)](https://pypi.org/project/backspin/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 **The flight recorder for AI agents.** Record every LLM call and tool call of an agent run into one portable file, replay the run deterministically with zero API access, and diff two runs to find the exact step where behavior diverged. 100% local, zero core dependencies.
 
 *Think [rr](https://rr-project.org/), but for agents instead of processes.*
@@ -241,9 +247,15 @@ backspin is a young project (v0.5) — record → replay → what-if → diff �
 
 ```bash
 pip install -e ".[dev]"
-pytest
+pytest                      # full suite incl. real-SDK integration tests
+ruff check backspin/ tests/ # lint
+mypy backspin/              # types
 python examples/mock_agent.py   # zero-setup demo: record → replay → diff
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for ground rules (core stays
+dependency-free; the run format is a contract) and [SECURITY.md](SECURITY.md)
+for how to report vulnerabilities.
 
 ## License
 

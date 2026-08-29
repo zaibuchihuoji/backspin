@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from tests.mock_anthropic_server import start_anthropic_server
-from tests.mock_openai_server import start_server, start_uvicorn
+from tests.mock_openai_server import start_server
 
 
 @pytest.fixture(scope="session")

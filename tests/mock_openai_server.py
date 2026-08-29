@@ -34,6 +34,12 @@ def _sse(payload) -> str:
     return "data: " + json.dumps(payload) + "\n\n"
 
 
+def _chunk(base, delta, finish_reason=None) -> str:
+    """One OpenAI-shaped SSE chunk around ``base``."""
+    return _sse({**base, "choices": [{"index": 0, "delta": delta,
+                                      "finish_reason": finish_reason}]})
+
+
 def make_app() -> FastAPI:
     app = FastAPI()
 
@@ -67,15 +73,21 @@ def make_app() -> FastAPI:
                     "model": model,
                     "choices": [{
                         "index": 0,
-                        "message": {"role": "assistant", "content": None, "tool_calls": [tool_call]},
+                        "message": {
+                            "role": "assistant", "content": None,
+                            "tool_calls": [tool_call],
+                        },
                         "finish_reason": "tool_calls",
                     }],
                     "usage": usage,
                 })
-            base = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": model}
+            base = {
+                "id": cid, "object": "chat.completion.chunk",
+                "created": created, "model": model,
+            }
 
             def tool_stream():
-                yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": None}, "finish_reason": None}]})
+                yield _chunk(base, {"role": "assistant", "content": None})
                 yield _sse({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{
                     "index": 0, "id": tool_call["id"], "type": "function",
                     "function": {"name": "get_weather", "arguments": ""},
@@ -84,7 +96,7 @@ def make_app() -> FastAPI:
                     yield _sse({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{
                         "index": 0, "function": {"arguments": piece},
                     }]}, "finish_reason": None}]})
-                yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+                yield _chunk(base, {}, "tool_calls")
                 if request.get("stream_options", {}).get("include_usage"):
                     yield _sse({**base, "choices": [], "usage": usage})
                 yield "data: [DONE]\n\n"
@@ -104,14 +116,17 @@ def make_app() -> FastAPI:
                 "usage": usage,
             })
 
-        base = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": model}
+        base = {
+            "id": cid, "object": "chat.completion.chunk",
+            "created": created, "model": model,
+        }
 
         def text_stream():
-            yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
+            yield _chunk(base, {"role": "assistant"})
             step = max(1, len(reply) // 3)
             for i in range(0, len(reply), step):
-                yield _sse({**base, "choices": [{"index": 0, "delta": {"content": reply[i:i + step]}, "finish_reason": None}]})
-            yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+                yield _chunk(base, {"content": reply[i:i + step]})
+            yield _chunk(base, {}, "stop")
             if request.get("stream_options", {}).get("include_usage"):
                 yield _sse({**base, "choices": [], "usage": usage})
             yield "data: [DONE]\n\n"

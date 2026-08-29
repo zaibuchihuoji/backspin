@@ -115,8 +115,11 @@ class StreamRecorder implements AsyncIterable<Record<string, any>> {
     } catch (err) {
       this.finalize(err);
       throw err;
+    } finally {
+      // also fires when the consumer breaks out of the loop early —
+      // finalize() is idempotent, so the double call is safe
+      this.finalize();
     }
-    this.finalize();
   }
 }
 
